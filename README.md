@@ -30,6 +30,23 @@ teaching one or more children.
   and a colorful full-screen **Kid Mode**.
 - **Insights & notifications**, a **streak tracker**, and a **downloadable guide**.
 
+## Research-Backed Evidence
+
+Homestead is built on two learning-science foundations, not ad hoc design choices:
+
+- **Mastery learning** — requiring students to reach a high level of
+  proficiency (Homestead uses 90%+) on one unit before advancing to the next
+  produces large, consistent achievement gains, especially for struggling
+  learners. See Kulik, Kulik & Bangert-Drowns (1990), *Effectiveness of
+  Mastery Learning Programs: A Meta-Analysis*, Review of Educational
+  Research — [SAGE Journals](https://journals.sagepub.com/doi/10.3102/00346543060002265).
+- **Active recall (retrieval practice)** — testing yourself on material,
+  rather than re-reading or re-watching it, produces stronger and more
+  durable learning than nearly every other studied technique. See Dunlosky
+  et al. (2013), *Improving Students' Learning With Effective Learning
+  Techniques*, Psychological Science in the Public Interest —
+  [APS summary](https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html).
+
 ## Tech
 
 - Static front end: HTML + CSS + vanilla JavaScript (ES modules), styled with
