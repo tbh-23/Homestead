@@ -32,7 +32,9 @@ teaching one or more children.
 
 ## Research-Backed Evidence
 
-Homestead is built on two learning-science foundations, not ad hoc design choices:
+Homestead is built on learning-science foundations, not ad hoc design choices.
+Each one below comes with its main caveat too — the lab effect and the
+classroom effect aren't always the same size.
 
 - **Mastery learning** — requiring students to reach a high level of
   proficiency (Homestead uses 90%+) on one unit before advancing to the next
@@ -40,12 +42,39 @@ Homestead is built on two learning-science foundations, not ad hoc design choice
   learners. See Kulik, Kulik & Bangert-Drowns (1990), *Effectiveness of
   Mastery Learning Programs: A Meta-Analysis*, Review of Educational
   Research — [SAGE Journals](https://journals.sagepub.com/doi/10.3102/00346543060002265).
+  *Caveat:* the largest effect sizes come mostly from shorter studies using
+  experimenter-made tests aligned to the intervention; effects measured with
+  independent, standardized tests over full courses tend to be smaller
+  (though still positive). Mastery gating also only helps if there's a real
+  remediation loop behind it, not just a repeated pass/fail gate.
 - **Active recall (retrieval practice)** — testing yourself on material,
   rather than re-reading or re-watching it, produces stronger and more
   durable learning than nearly every other studied technique. See Dunlosky
   et al. (2013), *Improving Students' Learning With Effective Learning
   Techniques*, Psychological Science in the Public Interest —
   [APS summary](https://www.psychologicalscience.org/publications/journals/pspi/learning-techniques.html).
+  *Caveat:* the effect is strongest for material tested the same way it was
+  practiced (facts, definitions, recall-type questions); it transfers less
+  reliably to novel problem-solving or far-transfer tasks, which is part of
+  why Homestead also spaces problem-solving retries, not just flashcards.
+- **Spaced (distributed) practice** — spreading study of the same material
+  over expanding intervals, instead of massing it into one session, is the
+  other top-rated technique alongside testing. See Cepeda, Pashler, Vul,
+  Wixted & Rohrer (2006), *Distributed Practice in Verbal Recall Tasks: A
+  Review and Quantitative Synthesis*, Psychological Bulletin 132(3):
+  354–380 — [author's copy](https://www.yorku.ca/ncepeda/publications/CPVWR2006.html)
+  — and Hattie & Donoghue (2021), *A Meta-Analysis of Ten Learning
+  Techniques*, Frontiers in Education —
+  [open access](https://www.frontiersin.org/journals/education/articles/10.3389/feduc.2021.581216/full).
+  Homestead's memory cards use a Leitner-style expanding schedule, and
+  missed mastery-test questions are now queued for spaced retry the same
+  way, extending the effect from facts to problem-solving.
+  *Caveat:* the effect is less bulletproof in real classrooms than in the
+  lab. A 2025 study in real primary-school settings found the retrieval
+  (testing) effect held up, but the spacing-interval manipulation itself
+  did not reach significance for those students — see [Retrieval practice
+  enhances learning in real primary school settings, whether distributed or
+  not](https://pmc.ncbi.nlm.nih.gov/articles/PMC12372469/).
 
 ## Tech
 

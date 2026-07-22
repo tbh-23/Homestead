@@ -10,6 +10,8 @@ export const XP = {
   subject: 300,    // pass a subject capstone
   recallCard: 4,   // per recall card graded
   recallGood: 2,   // bonus for good/easy
+  practiceRetry: 5,   // per missed-question retry graded
+  practiceCorrect: 3, // bonus for getting the retry right
   challenge: 20,    // completing a challenge
   challengeAce: 40, // acing a challenge (>=80%)
 };

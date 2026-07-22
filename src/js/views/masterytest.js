@@ -301,7 +301,10 @@ function renderPhysical(stage, subject, student, test, m) {
   wrap.querySelector('#print').onclick = () => printTest(subject, student, test);
   wrap.querySelector('#finish').onclick = () => {
     const earned = questions.reduce((s, q, i) => s + (marks[i] ? pointsOf(q) : 0), 0);
-    const graded = { earned, total: totalPts, pct: totalPts ? Math.round((earned / totalPts) * 100) : 0 };
+    const graded = {
+      earned, total: totalPts, pct: totalPts ? Math.round((earned / totalPts) * 100) : 0,
+      perQ: questions.map((q, i) => ({ correct: marks[i], points: pointsOf(q) })),
+    };
     renderResult(stage, subject, student, test, graded, m, null);
   };
   stage.appendChild(wrap);
@@ -336,6 +339,25 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
   // Passing a topic test IS what marks the topic mastered.
   if (isTopic && passed) {
     store.setStatus(student.id, topic.id, 'mastered');
+  }
+
+  // Queue every missed question for spaced retry, regardless of overall pass/fail —
+  // the gap this surfaces is specific to that question, not the whole topic.
+  if (graded.perQ && test.questions) {
+    test.questions.forEach((q, i) => {
+      const pq = graded.perQ[i];
+      if (!pq || pq.correct) return;
+      store.enqueuePracticeItem(student.id, {
+        topicId: isTopic ? topic.id : null,
+        subject,
+        q: q.q,
+        type: q.type,
+        options: q.options || null,
+        answer: q.answer,
+        source: isTopic ? 'topic' : isSection ? 'section' : 'subject',
+        sourceLabel: isTopic ? topic.name : isSection ? section.domain : subject,
+      });
+    });
   }
 
   // Award XP + badges for a pass (celebration fires after the result renders).
