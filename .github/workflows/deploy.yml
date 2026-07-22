@@ -1,8 +1,18 @@
 name: Deploy to Puter
 
+# Auto-deploy on push is DISABLED.
+#
+# @heyputer/cli@0.1.2 flattens the directory tree: `puter site deploy ./src`
+# uploads every file to the deployment root, so src/js/app.js lands at
+# /app.js and src/js/views/dashboard.js at /dashboard.js. index.html then
+# loads but every nested asset 404s, leaving a blank page. Observed on
+# ubuntu-latest (run #2, 2026-07-22), so it is not the Windows-only path bug
+# the earlier puter-cli attempt hit.
+#
+# Kept as workflow_dispatch so it can be re-tested manually. Before restoring
+# the `push` trigger, verify a deploy preserves js/ and css/ subdirectories.
+
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
 
 concurrency:
