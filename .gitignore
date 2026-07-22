@@ -30,3 +30,6 @@ data/dependencies.json
 data/clusters.json
 data/curriculum-standards.json
 data/manifest.json
+
+# Local Claude Code config (machine-specific; not shared)
+.claude/
