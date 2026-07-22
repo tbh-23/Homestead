@@ -35,7 +35,7 @@ export function toast(msg, kind = 'default') {
 
 export function openModal(contentEl, opts = {}) {
   const root = document.getElementById('modal-root');
-  const overlay = el(`<div class="fixed inset-0 z-[90] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-ink/40 backdrop-blur-sm opacity-0 transition-opacity duration-200"></div>`);
+  const overlay = el(`<div class="fixed inset-0 z-[99] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-ink/40 backdrop-blur-sm opacity-0 transition-opacity duration-200"></div>`);
   const panel = el(`<div class="bg-paper-card w-full ${opts.wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'} sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto border border-paper-line translate-y-4 sm:translate-y-0 sm:scale-95 transition-all duration-200"></div>`);
   panel.appendChild(contentEl);
   overlay.appendChild(panel);
