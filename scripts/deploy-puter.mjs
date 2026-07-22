@@ -122,7 +122,12 @@ async function main() {
   console.log(`Done. Live at https://${SUBDOMAIN}.puter.site`);
 }
 
-main().catch((err) => {
+// Exit explicitly on success: the puter.js SDK keeps a handle open (socket/
+// timer), so the process won't terminate on its own — without this the CI step
+// hangs after the deploy finishes until it hits the job timeout.
+main().then(() => {
+  process.exit(0);
+}).catch((err) => {
   console.error('Deploy failed:', err?.stack || err?.message || err);
   process.exit(1);
 });
