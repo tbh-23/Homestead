@@ -8,6 +8,7 @@ import { keyOf, topicsOn, dailyExtras } from '../scheduler.js';
 import { openMasteryTest } from './masterytest.js';
 import { openRecordingsLibrary } from './recordings.js';
 import { openDueRecall } from './recall.js';
+import { openDuePractice } from './practice.js';
 import { setTimelineSubject } from './timeline.js';
 import { BADGES } from '../game.js';
 import { openKidMode } from './kidmode.js';
@@ -118,6 +119,19 @@ export function renderDashboard(params, { navigate }) {
   </button>`);
   recallCard.onclick = () => openDueRecall();
   root.appendChild(recallCard);
+
+  // Spaced practice: missed mastery-test questions retried on an expanding schedule
+  const duePractice = store.practiceDueCount(active.id);
+  const practiceCard = el(`<button class="w-full text-left rounded-2xl border ${duePractice ? 'border-brand/30 bg-brand-light/50' : 'border-paper-line bg-paper-card'} p-4 mb-6 flex items-center gap-4 hover:border-brand/40 transition-colors">
+    <span class="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center shrink-0"><i data-lucide="repeat" class="w-5.5 h-5.5 text-brand-dark"></i></span>
+    <span class="flex-1 min-w-0">
+      <span class="block font-600">Spaced practice${duePractice ? ` · ${duePractice} due` : ''}</span>
+      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${active.name} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
+    </span>
+    <span class="shrink-0 flex items-center gap-1.5 text-sm font-medium text-brand-dark">${duePractice ? 'Practice' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
+  </button>`);
+  practiceCard.onclick = () => openDuePractice();
+  root.appendChild(practiceCard);
 
   // Subject grid — each with a circular completion ring
   root.appendChild(el(`<h2 class="font-600 mb-3 flex items-center gap-2"><i data-lucide="layout-grid" class="w-4.5 h-4.5 text-ink-soft"></i>Subjects</h2>`));

@@ -24,6 +24,7 @@ let state = {
   notifications: [],  // account-wide: [ {id, type, title, body, meta, read, createdAt} ]
   curriculumSnapshot: null, // {version, generatedAt, topicIds:[...], count}
   recall: {},         // studentId -> { cardId -> { topicId, box, due, reps, lapses, last } }
+  practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
 };
@@ -66,6 +67,7 @@ export async function signOut() {
   state.notifications = [];
   state.curriculumSnapshot = null;
   state.recall = {};
+  state.practice = {};
   state.activity = {};
   state.game = {};
   emit();
@@ -90,6 +92,7 @@ export async function loadAll() {
       state.notifications = data.notifications || [];
       state.curriculumSnapshot = data.curriculumSnapshot || null;
       state.recall = data.recall || {};
+      state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
     }
@@ -115,6 +118,7 @@ export function persist() {
         notifications: state.notifications,
         curriculumSnapshot: state.curriculumSnapshot,
         recall: state.recall,
+        practice: state.practice,
         activity: state.activity,
         game: state.game,
       }));
@@ -379,6 +383,62 @@ export function recallStatsForTopic(studentId, cardIds) {
 }
 export function recallDueCount(studentId) {
   return dueRecallCards(studentId).length;
+}
+
+// ---- Spaced practice for missed mastery-test questions ----
+// Extends the same expanding-interval ladder to problem-solving, not just facts.
+// Unlike recall cards (stable per-topic content, cached and reusable), a test
+// question is AI-generated per attempt and can't be regenerated identically —
+// so the question content itself is stored on the queued item.
+function practiceOf(studentId) {
+  if (!state.practice[studentId]) state.practice[studentId] = {};
+  return state.practice[studentId];
+}
+
+// Queue a missed question for spaced retry. Skips duplicates for the same
+// topic + question text so retaking a test doesn't pile up repeats.
+export function enqueuePracticeItem(studentId, item) {
+  const p = practiceOf(studentId);
+  const dup = Object.values(p).some(x => x.topicId === item.topicId && x.q === item.q);
+  if (dup) return null;
+  const id = 'p_' + Math.random().toString(36).slice(2, 9);
+  p[id] = { ...item, box: 0, due: dayStart(Date.now()), reps: 0, lapses: 0, last: null, createdAt: Date.now() };
+  persist(); emit();
+  return p[id];
+}
+
+// Grade a retry: correct advances the interval; incorrect resets to box 0.
+// A question graduates out of the queue once answered correctly at the top
+// of the ladder — durable retention has been demonstrated, so it retires.
+export function gradePracticeItem(studentId, itemId, correct) {
+  const p = practiceOf(studentId);
+  const item = p[itemId];
+  if (!item) return null;
+  item.reps = (item.reps || 0) + 1;
+  item.last = Date.now();
+  if (correct) {
+    const nextBox = (item.box || 0) + 1;
+    if (nextBox >= RECALL_INTERVALS.length) { delete p[itemId]; markActivity(studentId); persist(); emit(); return null; }
+    item.box = nextBox;
+  } else {
+    item.box = 0;
+    item.lapses = (item.lapses || 0) + 1;
+  }
+  item.due = dayStart(Date.now()) + (RECALL_INTERVALS[item.box] || 1) * DAY;
+  markActivity(studentId);
+  persist(); emit();
+  return item;
+}
+
+export function duePracticeItems(studentId) {
+  const p = practiceOf(studentId);
+  const today = dayStart(Date.now());
+  return Object.entries(p)
+    .filter(([, c]) => c.due <= today)
+    .map(([id, c]) => ({ id, ...c }));
+}
+export function practiceDueCount(studentId) {
+  return duePracticeItems(studentId).length;
 }
 
 // ---- Activity streak ----
