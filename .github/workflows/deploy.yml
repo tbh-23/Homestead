@@ -1,18 +1,17 @@
 name: Deploy to Puter
 
-# Auto-deploy on push is DISABLED.
+# Auto-deploys src/ to homestead.puter.site on every push to main.
 #
-# @heyputer/cli@0.1.2 flattens the directory tree: `puter site deploy ./src`
-# uploads every file to the deployment root, so src/js/app.js lands at
-# /app.js and src/js/views/dashboard.js at /dashboard.js. index.html then
-# loads but every nested asset 404s, leaving a blank page. Observed on
-# ubuntu-latest (run #2, 2026-07-22), so it is not the Windows-only path bug
-# the earlier puter-cli attempt hit.
+# Uses scripts/deploy-puter.mjs (the @heyputer/puter.js SDK) rather than
+# `puter site deploy`: the CLI (@heyputer/cli@0.1.2) flattens the directory
+# tree, dropping every file at the deployment root so nested modules 404.
+# The script writes each file to its full nested path, which Puter preserves.
 #
-# Kept as workflow_dispatch so it can be re-tested manually. Before restoring
-# the `push` trigger, verify a deploy preserves js/ and css/ subdirectories.
+# Requires a PUTER_AUTH_TOKEN repository secret (puter.com/dashboard → Create token).
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch: {}
 
 concurrency:
@@ -27,9 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install -g @heyputer/cli
+      - run: npm install @heyputer/puter.js@^2.5.1
       - name: Deploy site
         env:
           PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
-          CI: "true"
-        run: puter site deploy ./src homestead
+        run: node scripts/deploy-puter.mjs
