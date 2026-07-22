@@ -1,0 +1,32 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# Logs & temp
+*.log
+npm-debug.log*
+.cache/
+tmp/
+*.tmp
+
+# Dependencies (this project has no build step; none should be committed)
+node_modules/
+
+# Environment / secrets — never commit these
+.env
+.env.*
+*.pem
+*.key
+
+# Do NOT commit a copy of the curriculum dataset.
+# Homestead loads the Marble Skill Taxonomy at runtime from its open repository.
+data/topics.json
+data/dependencies.json
+data/clusters.json
+data/curriculum-standards.json
+data/manifest.json

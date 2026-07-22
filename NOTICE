@@ -1,0 +1,22 @@
+Homestead
+=========
+
+Homestead is a mastery-based homeschool application. The application code is
+licensed under the MIT License (see LICENSE).
+
+This product includes and displays data from a third-party open dataset:
+
+    Marble Skill Taxonomy (v1)
+    © Generative Spark, Inc. (Marble)
+    https://withmarble.com
+    Source: https://github.com/withmarbleapp/os-taxonomy
+    Licensed under ODbL 1.0 (the database) and CC BY-SA 4.0 (the textual content).
+
+Attribution is required by those licenses. The credit line above is also shown
+in the application UI and must be preserved in any distribution or derivative.
+
+Curriculum-standard codes surfaced by the app (e.g. Common Core "ccss-…",
+NGSS "ngss-…", the UK National Curriculum, and others) are extracted from
+third-party frameworks that are each under their own upstream license. See
+DATA-LICENSE.md and the upstream PROVENANCE.md in the taxonomy repository for
+those notices.

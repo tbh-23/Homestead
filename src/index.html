@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Homestead — Mastery Homeschool</title>
+<script>
+window.onerror=function(msg,src,line,col,err){window.parent.postMessage({type:'app-error',message:msg,source:src,lineno:line,colno:col,stack:err&&err.stack||''},'*');};
+window.onunhandledrejection=function(e){window.parent.postMessage({type:'app-error',message:'Unhandled promise rejection: '+(e.reason&&e.reason.message||e.reason||'unknown'),stack:e.reason&&e.reason.stack||''},'*');};
+window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t!==window&&t.tagName==='SCRIPT'){var u=t.src||'';window.parent.postMessage({type:'app-error',message:'Failed to load script'+(u?': '+u:' (inline module)'),source:u},'*');}},true);
+(function(){var _f=window.fetch;window.fetch=function(){var a=arguments,u=typeof a[0]==='string'?a[0]:(a[0]&&a[0].url)||'';var p=_f.apply(this,a);p.then(function(r){if(r.status===500){r.clone().text().then(function(b){window.parent.postMessage({type:'fetch-error',url:u,status:500,body:b},'*');}).catch(function(){window.parent.postMessage({type:'fetch-error',url:u,status:500,body:''},'*');});}}).catch(function(e){window.parent.postMessage({type:'fetch-error',url:u,status:0,body:e.message||'fetch failed'},'*');});return p;};})();
+(function(){var ov,cur,on=false;function box(el){if(!ov){ov=document.createElement('div');ov.style.cssText='position:fixed;z-index:2147483647;pointer-events:none;border:2px solid #2563eb;background:rgba(37,99,235,0.12);border-radius:2px;box-sizing:border-box;';document.documentElement.appendChild(ov);}var r=el.getBoundingClientRect();ov.style.left=r.left+'px';ov.style.top=r.top+'px';ov.style.width=r.width+'px';ov.style.height=r.height+'px';}function esc(s){return (window.CSS&&CSS.escape)?CSS.escape(s):s;}function sel(el){var p=[],n=el;while(n&&n.nodeType===1&&n.tagName!=='HTML'){var s=n.tagName.toLowerCase();if(n.id){p.unshift(s+'#'+esc(n.id));break;}var par=n.parentNode;if(par){var same=Array.prototype.filter.call(par.children,function(c){return c.tagName===n.tagName;});if(same.length>1){s+=':nth-of-type('+(Array.prototype.indexOf.call(same,n)+1)+')';}}p.unshift(s);n=par;}return p.join(' > ');}function clip(s,n){s=s||'';return s.length>n?s.slice(0,n)+'...':s;}function mm(e){if(!on){return;}cur=e.target;box(cur);}function clk(e){if(!on){return;}e.preventDefault();e.stopPropagation();try{var el=e.target;window.parent.postMessage({type:'puter-element-selected',selector:sel(el),tag:el.tagName.toLowerCase(),id:el.id||'',className:(typeof el.className==='string'?el.className:''),text:clip((el.textContent||'').trim(),200),html:clip(el.outerHTML||'',800)},'*');}finally{stop();}}function start(){if(on){return;}on=true;document.addEventListener('mousemove',mm,true);document.addEventListener('click',clk,true);if(document.body){document.body.style.cursor='crosshair';}}function stop(){on=false;if(ov&&ov.parentNode){ov.parentNode.removeChild(ov);}ov=null;document.removeEventListener('mousemove',mm,true);document.removeEventListener('click',clk,true);if(document.body){document.body.style.cursor='';}}window.addEventListener('message',function(e){if(e.source!==window.parent){return;}if(!e.data||e.data.type!=='puter-select-mode'){return;}if(e.data.enabled){start();window.parent.postMessage({type:'puter-select-ready'},'*');}else{stop();}});window.addEventListener('scroll',function(){if(on&&cur){box(cur);}},true);window.addEventListener('resize',function(){if(on&&cur){box(cur);}},true);})();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://js.puter.com/v2/"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Fraunces', 'Georgia', 'serif'],
+      },
+      colors: {
+        ink: { DEFAULT: '#1c1a17', soft: '#4a4640', faint: '#8a847a' },
+        paper: { DEFAULT: '#fbf9f4', card: '#ffffff', line: '#ece7dd' },
+        brand: { DEFAULT: '#3f7d5e', dark: '#2f6049', light: '#e7f0ea' },
+      },
+    },
+  },
+};
+</script>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-paper text-ink font-sans antialiased">
+  <div id="app" class="min-h-screen"></div>
+  <div id="modal-root"></div>
+  <div id="toast-root" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 items-end"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
