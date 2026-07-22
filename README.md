@@ -7,6 +7,8 @@ learning path where every idea is genuinely mastered before the next begins — 
 the whole experience adapts to the child. It's built for a homeschooling parent
 teaching one or more children.
 
+**Live at [homestead.puter.site](https://homestead.puter.site).**
+
 ## Highlights
 
 - **Mastery ladder** — Topics → Sections → Subjects, each gated at 90%+ so
@@ -18,6 +20,9 @@ teaching one or more children.
 - **Verified tests** — topic, section, and subject mastery tests, written and
   then independently re-solved so answers are trustworthy; digital or printable.
 - **Active recall** — spaced-repetition memory cards per topic, with due reviews.
+- **Spaced practice** — mastery-test questions a child misses are queued and
+  resurfaced on an expanding review schedule until they stick, extending spaced
+  repetition from facts to problem-solving.
 - **Adaptivity** — timed challenges and parent-approved difficulty increases when
   a child excels.
 - **Adaptive daily calendar** — a day-by-day plan you can reschedule, mark done,
@@ -81,21 +86,41 @@ classroom effect aren't always the same size.
 - Static front end: HTML + CSS + vanilla JavaScript (ES modules), styled with
   Tailwind (CDN).
 - Backend, auth, storage, and AI via [Puter.js](https://puter.com).
-- No build step. Serve the folder over HTTP and open `index.html`.
+- No build step. The site is served from the [`src/`](src) directory —
+  `src/index.html` is the entry point.
 
 ## Running locally
 
-Any static file server works, for example:
+Any static file server works, pointed at `src/`, for example:
 
 ```bash
-npx serve .
+npx serve src
 # or
-python3 -m http.server 8000
+cd src && python3 -m http.server 8000
 ```
 
 Then open the served URL. Sign in with a Puter account when prompted; each
 parent's students, progress, records, and recordings are stored privately in
 their own account.
+
+## Deployment
+
+Pushes to `main` deploy automatically to
+[homestead.puter.site](https://homestead.puter.site) via the
+[`Deploy to Puter`](.github/workflows/deploy.yml) GitHub Actions workflow, which
+runs [`scripts/deploy-puter.mjs`](scripts/deploy-puter.mjs).
+
+The script uploads `src/` to Puter hosting with its directory structure
+preserved, into a fresh `release-<timestamp>` folder, then atomically re-points
+the `homestead` subdomain at it (zero downtime) and prunes old releases. It uses
+the [`@heyputer/puter.js`](https://www.npmjs.com/package/@heyputer/puter.js) SDK
+directly rather than the Puter CLI, because the CLI flattens nested directories
+(so `src/js/views/dashboard.js` would 404). You can also run it from the Actions
+tab via **workflow_dispatch**.
+
+Deployment requires a `PUTER_AUTH_TOKEN` repository secret (generate one at
+`puter.com/dashboard` → **Create token**). If it's missing, the workflow fails
+fast before touching the live site.
 
 ## The curriculum data
 
