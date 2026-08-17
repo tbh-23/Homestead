@@ -12,6 +12,7 @@ import { renderTopic } from './views/topic.js';
 import { renderRecords } from './views/records.js';
 import { renderInsights } from './views/insights.js';
 import { renderCoop } from './views/coop.js';
+import { renderFamily } from './views/family.js';
 
 const app = document.getElementById('app');
 
@@ -70,6 +71,7 @@ function render() {
     records: renderRecords,
     insights: renderInsights,
     coop: renderCoop,
+    family: renderFamily,
     onboard: renderOnboard,
   };
   const viewFn = views[route.name] || renderDashboard;

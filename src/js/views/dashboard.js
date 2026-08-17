@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, fmtDateTime } from '../ui.js';
 import { studentStats, recommendedNext, recentActivity, MASTERY } from '../mastery.js';
 import { openRecordForm } from './records.js';
 import { openRecorder } from '../recorder.js';
@@ -28,7 +28,7 @@ export function renderDashboard(params, { navigate }) {
   root.appendChild(el(`<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
     <div>
       <p class="text-sm text-ink-faint">${greet}</p>
-      <h1 class="font-display text-2xl sm:text-3xl font-600">${active.name}'s learning</h1>
+      <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(active.name)}'s learning</h1>
       <p class="text-ink-soft text-sm mt-0.5">Age ${age} · ${stats.totalMastered} of ${stats.total} topics mastered across ${Object.keys(SUBJECTS).length} subjects</p>
     </div>
     <div class="flex gap-2">
@@ -47,8 +47,8 @@ export function renderDashboard(params, { navigate }) {
     const banner = el(`<button class="w-full text-left rounded-2xl border border-brand/30 bg-brand-light/50 p-4 mb-6 flex items-center gap-3 hover:bg-brand-light transition-colors">
       <span class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center shrink-0"><i data-lucide="trending-up" class="w-5 h-5 text-white"></i></span>
       <span class="flex-1 min-w-0">
-        <span class="block font-600 text-sm">${pending.length} adaptive suggestion${pending.length > 1 ? 's' : ''} for ${active.name}</span>
-        <span class="block text-xs text-ink-soft">${active.name} is excelling — review ideas to raise the challenge. You decide.</span>
+        <span class="block font-600 text-sm">${pending.length} adaptive suggestion${pending.length > 1 ? 's' : ''} for ${esc(active.name)}</span>
+        <span class="block text-xs text-ink-soft">${esc(active.name)} is excelling — review ideas to raise the challenge. You decide.</span>
       </span>
       <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
     </button>`);
@@ -126,7 +126,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="w-11 h-11 rounded-xl bg-brand/10 flex items-center justify-center shrink-0"><i data-lucide="repeat" class="w-5.5 h-5.5 text-brand-dark"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Spaced practice${duePractice ? ` · ${duePractice} due` : ''}</span>
-      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${active.name} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
+      <span class="block text-sm text-ink-soft">${duePractice ? `Retry the mastery-test questions ${esc(active.name)} missed, before they fade.` : 'Missed test questions come back here on a spaced schedule until they stick.'}</span>
     </span>
     <span class="shrink-0 flex items-center gap-1.5 text-sm font-medium text-brand-dark">${duePractice ? 'Practice' : ''}<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);
@@ -201,7 +201,7 @@ export function renderDashboard(params, { navigate }) {
   recentRecords.forEach(r => {
     recWrap.appendChild(el(`<div class="text-sm">
       <div class="flex items-center gap-2 text-xs text-ink-faint mb-0.5"><span class="capitalize font-medium text-ink-soft">${r.type}</span><span>·</span><span>${fmtDateTime(r.createdAt)}</span></div>
-      <p class="text-ink-soft clamp-2 leading-snug">${r.title || r.note || ''}</p>
+      <p class="text-ink-soft clamp-2 leading-snug">${esc(r.title || r.note || '')}</p>
     </div>`));
   });
   twoCol.appendChild(recCard);

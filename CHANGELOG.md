@@ -4,6 +4,38 @@ All notable changes to Homestead are documented here. This project loosely
 follows [Keep a Changelog](https://keepachangelog.com/) and semantic-ish
 versioning.
 
+## [Unreleased]
+
+### Added
+- **Year-end portfolio & progress reports** — a printable, PDF-ready report per
+  student built entirely from existing account data: mastery by subject, a
+  mastery-growth chart, attendance / instruction days, topics mastered with
+  dates, assessments passed, and a sample of records. Useful for personal
+  records and state homeschool reporting.
+- **Backup & restore** — export the whole account (students, progress, records,
+  tests, settings) to a single JSON file, and restore it later. Opened from the
+  new **Data & reports** panel.
+- **Family view** — one screen for parents teaching several children: each
+  child's plan for today (scheduled topics + what's due) side by side, plus a
+  friendly sibling leaderboard (XP, level, streak).
+- **Progress-over-time charts** in Insights — cumulative mastery growth and a
+  test-score history per subject, drawn as dependency-free inline SVG.
+- **Installable PWA / offline-resilient shell** — a web app manifest, icon, and
+  service worker. Homestead can be installed to the home screen, and the app
+  shell, curriculum, and fonts are cached so repeat loads are fast and survive a
+  flaky connection. Puter auth/data requests always go straight to the network.
+
+### Fixed
+- Removing a student now clears **all** of that student's data (tests, plan,
+  recall, practice, challenges, adaptations, activity, game state), not just
+  progress and records — no more orphaned data lingering in the saved account.
+- Pending changes are now flushed on tab hide/close, so a just-made edit (a
+  grade, a note, a passed test) can't be lost inside the save debounce window.
+- Consistent HTML escaping of user-entered text (student names, record titles
+  and notes) across all views.
+- Calendar plan window (`firstKey`/`lastKey`) is recomputed after topic moves, so
+  moving a topic earlier no longer leaves the track pointing at an empty day.
+
 ## [1.0.0] — Initial public release
 
 ### Learning core

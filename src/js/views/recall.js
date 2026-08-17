@@ -193,7 +193,7 @@ function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;',
 export function recallSectionCard(topic, student) {
   const body = el(`<div></div>`);
   if (!student) { body.appendChild(el(`<p class="text-sm text-ink-faint">Add a student to practice recall.</p>`)); return sectionWrap(body); }
-  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${student.name} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
+  body.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-3">Retrieval practice: ${esc(student.name)} answers short questions <span class="font-600">from memory</span>, then reviews on a spaced schedule so it sticks.</p>`));
   const btn = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium text-sm transition-colors"><i data-lucide="brain" class="w-4 h-4"></i>Practice recall</button>`);
   btn.onclick = () => openRecall(topic);
   body.appendChild(btn);

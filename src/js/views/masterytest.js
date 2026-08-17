@@ -71,10 +71,10 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
   stage.innerHTML = '';
   const wrap = el(`<div class="fade-up">
     <p class="text-sm text-ink-soft leading-relaxed mb-4">${isTopic
-      ? `A short check that ${student.name} has mastered <span class="font-600 text-ink">${topic.name}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
+      ? `A short check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${topic.name}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
       : isSection
-      ? `A check that ${student.name} has mastered <span class="font-600 text-ink">${section.domain}</span> (age ${section.age}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
-      : `A final check that ${student.name} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>
+      ? `A check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${section.domain}</span> (age ${section.age}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
+      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>
 
     ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${topic.description}</p></div>` : ''}
     ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${section.summary}</p></div>` : ''}
@@ -266,7 +266,7 @@ function renderPhysical(stage, subject, student, test, m) {
     <button id="print" class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-ink hover:bg-ink-soft text-white font-medium transition-colors mb-5"><i data-lucide="printer" class="w-4 h-4"></i>Print the test &amp; answer key</button>
 
     <p class="text-sm font-600 mb-1">Grade it</p>
-    <p class="text-xs text-ink-faint mb-3">Tick every question ${student.name} answered correctly.</p>
+    <p class="text-xs text-ink-faint mb-3">Tick every question ${esc(student.name)} answered correctly.</p>
     <div id="grade" class="space-y-2"></div>
 
     <div class="mt-4 flex items-center justify-between px-1">
@@ -380,8 +380,8 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
       ? (isTopic
           ? `This topic is now marked mastered. Keep going!`
           : isSection
-          ? `${student.name} is ready to move on from this section. Great work!`
-          : `${student.name} scored above the ${PASS}% mastery mark. Fantastic work!`)
+          ? `${esc(student.name)} is ready to move on from this section. Great work!`
+          : `${esc(student.name)} scored above the ${PASS}% mastery mark. Fantastic work!`)
       : (isTopic
           ? `Mastery needs ${PASS}%. Revisit this topic's lesson and try again when ready — this isn't a failure, just a signpost.`
           : `Mastery needs ${PASS}%. Revisit the trickier topics and try again when ready — this isn't a failure, just a signpost.`)}</p>

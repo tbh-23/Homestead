@@ -10,6 +10,18 @@ export const MASTERY = {
 };
 
 const listeners = new Set();
+
+// Every per-student map, so a student can be fully removed and a backup can be
+// serialized/restored from one place (keeps the two in lock-step).
+const PER_STUDENT_KEYS = [
+  'progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
+  'suggestions', 'recall', 'practice', 'activity', 'game',
+];
+// All persisted top-level keys (per-student maps + account-wide state).
+const PERSIST_KEYS = [
+  'students', 'activeStudentId', ...PER_STUDENT_KEYS, 'notifications', 'curriculumSnapshot',
+];
+
 let state = {
   user: null,
   students: [],       // {id, name, birthYear, avatar, color}
@@ -99,31 +111,36 @@ export async function loadAll() {
   } catch (e) { console.warn('load failed', e); }
 }
 
+// The snapshot that gets written to KV (and exported as a backup).
+function serialize() {
+  const out = {};
+  for (const k of PERSIST_KEYS) out[k] = state[k];
+  return out;
+}
+
 let saveTimer = null;
+function writeState() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  return puter.kv.set(KEY, JSON.stringify(serialize()))
+    .catch(e => console.warn('save failed', e));
+}
 export function persist() {
   if (!state.user) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      await puter.kv.set(KEY, JSON.stringify({
-        students: state.students,
-        activeStudentId: state.activeStudentId,
-        progress: state.progress,
-        records: state.records,
-        tests: state.tests,
-        plan: state.plan,
-        challenges: state.challenges,
-        adaptations: state.adaptations,
-        suggestions: state.suggestions,
-        notifications: state.notifications,
-        curriculumSnapshot: state.curriculumSnapshot,
-        recall: state.recall,
-        practice: state.practice,
-        activity: state.activity,
-        game: state.game,
-      }));
-    } catch (e) { console.warn('save failed', e); }
-  }, 400);
+  saveTimer = setTimeout(writeState, 400);
+}
+
+// Write any pending debounced save immediately. Used before the tab is hidden or
+// closed so a just-made change (a grade, a note, a passed test) isn't lost inside
+// the 400ms debounce window.
+export function flushPending() {
+  if (saveTimer && state.user) writeState();
+}
+if (typeof window !== 'undefined') {
+  const flush = () => { try { flushPending(); } catch {} };
+  window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+  window.addEventListener('pagehide', flush);
 }
 
 // ---- Students ----
@@ -147,7 +164,9 @@ export function updateStudent(id, patch) {
 }
 export function removeStudent(id) {
   state.students = state.students.filter(s => s.id !== id);
-  delete state.progress[id]; delete state.records[id];
+  // Remove the student from every per-student map so no orphaned data lingers
+  // in the saved payload (progress, tests, plan, recall, game, activity, …).
+  for (const k of PER_STUDENT_KEYS) { if (state[k]) delete state[k][id]; }
   if (state.activeStudentId === id) state.activeStudentId = state.students[0]?.id || null;
   persist(); emit();
 }
@@ -534,6 +553,40 @@ export function markAllNotificationsRead() {
   persist(); emit();
 }
 export function clearNotifications() { state.notifications = []; persist(); emit(); }
+
+// ---- Backup: export / import the whole account ----
+// A backup is the same serialized shape we persist to KV, wrapped with a little
+// metadata so an import can sanity-check what it's restoring.
+export const BACKUP_FORMAT = 'homestead-backup/v1';
+export function exportData() {
+  return {
+    format: BACKUP_FORMAT,
+    exportedAt: Date.now(),
+    app: 'Homestead',
+    data: serialize(),
+  };
+}
+// Restore a previously exported backup. Returns { ok, error?, students } without
+// mutating anything unless the payload is valid. The caller is expected to reload
+// afterward so every cached view (plan cache, etc.) is rebuilt cleanly.
+export async function importData(payload) {
+  if (!state.user) return { ok: false, error: 'Sign in before importing.' };
+  const data = payload && (payload.data && payload.format ? payload.data : payload);
+  if (!data || typeof data !== 'object' || !Array.isArray(data.students)) {
+    return { ok: false, error: 'This file is not a valid Homestead backup.' };
+  }
+  for (const k of PERSIST_KEYS) {
+    if (k === 'students' || k === 'notifications') state[k] = data[k] || [];
+    else if (k === 'activeStudentId' || k === 'curriculumSnapshot') state[k] = data[k] ?? null;
+    else state[k] = data[k] || {};
+  }
+  if (!state.activeStudentId || !state.students.some(s => s.id === state.activeStudentId)) {
+    state.activeStudentId = state.students[0]?.id || null;
+  }
+  await writeState();
+  emit();
+  return { ok: true, students: state.students.length };
+}
 
 // ---- Curriculum snapshot (for detecting repo updates) ----
 export function getCurriculumSnapshot() { return state.curriculumSnapshot; }
