@@ -25,7 +25,33 @@ const TOKEN = process.env.PUTER_AUTH_TOKEN;
 const SUBDOMAIN = process.env.PUTER_SUBDOMAIN || 'homestead';
 const SRC = process.env.DEPLOY_SRC || 'src';
 const KEEP = Math.max(1, parseInt(process.env.KEEP_RELEASES || '3', 10));
-const CONCURRENCY = 6;
+// Keep parallel uploads modest: Puter rate-limits concurrent FS writes and
+// returns "Too many concurrent requests" when too many run at once (this bit us
+// once the file count grew). Override with DEPLOY_CONCURRENCY if needed.
+const CONCURRENCY = Math.max(1, parseInt(process.env.DEPLOY_CONCURRENCY || '3', 10));
+const MAX_RETRIES = Math.max(0, parseInt(process.env.DEPLOY_MAX_RETRIES || '5', 10));
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Retry a write on transient failures (rate limits / network blips) with
+// exponential backoff + jitter. Rethrows after MAX_RETRIES so the deploy still
+// fails loudly rather than shipping a partial release.
+async function withRetry(label, fn) {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = String(err?.message ?? err);
+      const transient = /concurrent|rate|timeout|429|ECONN|network|temporarily|try again/i.test(msg);
+      if (attempt >= MAX_RETRIES || !transient) throw err;
+      const delay = Math.round(400 * 2 ** attempt + Math.random() * 300);
+      attempt++;
+      console.log(`  retry ${attempt}/${MAX_RETRIES} for ${label} after "${msg}" (waiting ${delay}ms)`);
+      await sleep(delay);
+    }
+  }
+}
 
 if (!TOKEN) {
   console.error('PUTER_AUTH_TOKEN is not set. Aborting before any Puter calls.');
@@ -87,19 +113,19 @@ async function main() {
     // File([buffer], name) is the Node-compatible payload this SDK accepts; the
     // explicit nested `path` (not the file name) determines where it lands.
     const data = new File([buf], path.posix.basename(f.rel));
-    await puter.fs.write(`${release}/${f.rel}`, data, {
+    await withRetry(f.rel, () => puter.fs.write(`${release}/${f.rel}`, data, {
       overwrite: true,
       createMissingParents: true,
-    });
+    }));
     console.log(`  uploaded ${f.rel}`);
   });
 
   // Flip the subdomain to the new release (create it if it somehow doesn't exist).
   try {
-    await puter.hosting.update(SUBDOMAIN, release);
+    await withRetry('hosting.update', () => puter.hosting.update(SUBDOMAIN, release));
   } catch (err) {
     console.log(`hosting.update failed (${err?.message ?? err}); trying hosting.create...`);
-    await puter.hosting.create(SUBDOMAIN, release);
+    await withRetry('hosting.create', () => puter.hosting.create(SUBDOMAIN, release));
   }
   console.log(`Subdomain "${SUBDOMAIN}" now serving ${release}`);
 
