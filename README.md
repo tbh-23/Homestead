@@ -38,6 +38,18 @@ teaching one or more children.
   cover each other's kids with a one-tap printable Day Sheet. Only the day's
   topics and an optional note are shared; each family's data stays in their own
   account.
+- **Progress over time** — Insights charts each subject's cumulative mastery
+  growth and test-score history, drawn as lightweight inline SVG (no libraries).
+- **Year-end reports** — a printable, PDF-ready learning portfolio per child
+  (mastery, attendance/instruction days, topics mastered, assessments passed,
+  records) for your own records or state homeschool reporting.
+- **Family view** — for parents teaching several children: everyone's plan for
+  today at a glance, plus a friendly sibling leaderboard.
+- **Backup & restore** — export the whole account to a JSON file and restore it
+  anytime, from the in-app **Data & reports** panel.
+- **Installable & offline-resilient** — a Progressive Web App: install to the
+  home screen, and the shell, curriculum, and fonts are cached so repeat loads
+  are fast and survive a flaky connection.
 - **Insights & notifications**, a **streak tracker**, and a **downloadable guide**.
 
 ## Research-Backed Evidence
@@ -112,11 +124,30 @@ without ever exposing how the child is actually doing.
 Commune runs on a [Puter](https://puter.com) serverless worker that stores only
 commune membership and the opt-in daily cards — never any family's learning data.
 
+## Reports, backup & offline
+
+- **Year-end report** — open **Data & reports** (sidebar on desktop, or the
+  student switcher on mobile) and choose a student to generate a printable
+  portfolio. It's built only from data already in your account; use your
+  browser's *Save as PDF* to keep a copy. Many US states require homeschoolers
+  to keep exactly this kind of portfolio plus an attendance record.
+- **Backup & restore** — from the same panel, **Export** downloads the entire
+  account as one JSON file, and **Restore** imports one (replacing the current
+  account). Everything lives in a single Puter KV record, so a backup is
+  complete and portable.
+- **Install it** — Homestead ships a web app manifest and a service worker, so
+  it can be installed to a phone/desktop home screen. The app shell, the
+  curriculum data, and fonts are cached (stale-while-revalidate); Puter auth and
+  data always go to the network, so account state is never stale.
+
 ## Tech
 
 - Static front end: HTML + CSS + vanilla JavaScript (ES modules), styled with
-  Tailwind (CDN).
+  Tailwind (CDN). Charts are hand-rolled inline SVG — no charting library.
 - Backend, auth, storage, and AI via [Puter.js](https://puter.com).
+- Progressive Web App: [`src/manifest.webmanifest`](src/manifest.webmanifest) +
+  a cache-first-for-assets, network-first-for-data service worker
+  ([`src/sw.js`](src/sw.js)).
 - No build step. The site is served from the [`src/`](src) directory —
   `src/index.html` is the entry point.
 

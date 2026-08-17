@@ -93,7 +93,7 @@ function open() {
   // Greeting on first open (kept across opens within the session).
   if (messages.length === 0) {
     renderBubble(msgsEl, 'assistant',
-      `<p>Hi! I'm your teaching helper.${s ? ` I can see ${s.name}'s progress.` : ''} Tell me what they're finding tricky — for example, <em>"my child is struggling with subtraction and telling time, any ideas?"</em> — and I'll give you concrete tips and activities.</p>`);
+      `<p>Hi! I'm your teaching helper.${s ? ` I can see ${esc(s.name)}'s progress.` : ''} Tell me what they're finding tricky — for example, <em>"my child is struggling with subtraction and telling time, any ideas?"</em> — and I'll give you concrete tips and activities.</p>`);
   } else {
     messages.forEach(m => renderBubble(msgsEl, m.role, m.role === 'assistant' ? m.html || esc(m.content) : esc(m.content)));
   }

@@ -1,0 +1,15 @@
+{
+  "name": "Homestead — Mastery Homeschool",
+  "short_name": "Homestead",
+  "description": "A mastery-based homeschool platform for ages 5–13: a connected curriculum, ready-to-teach lessons, verified tests, spaced practice and progress reports.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fbf9f4",
+  "theme_color": "#3f7d5e",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

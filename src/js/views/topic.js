@@ -1,6 +1,6 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal, fmtDateTime } from '../ui.js';
 import { isUnlocked, blockingPrereqs, MASTERY, sectionForTopic, topicsMasteryStats, sectionTestReady } from '../mastery.js';
 import { openMasteryTest } from './masterytest.js';
 import { openChallenge } from './challenge.js';
@@ -247,8 +247,8 @@ function recordingItem(r) {
       <span class="flex items-center gap-1 font-600 text-[#b0413a]"><i data-lucide="mic" class="w-3.5 h-3.5"></i>Recording</span>
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
-    ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${r.topicName}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
+    ${r.topicName ? `<p class="text-[11px] text-ink-faint mt-0.5">on ${esc(r.topicName)}</p>` : ''}
   </div>`);
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;
@@ -434,8 +434,8 @@ function recordItem(r) {
       ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${'\u2605'.repeat(r.rating)}${'\u2606'.repeat(5-r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${fmtDateTime(r.createdAt)}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${r.title}</p>` : ''}
-    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${r.note}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
+    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
   </div>`);
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;

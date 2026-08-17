@@ -93,8 +93,11 @@ export function buildPlan(student) {
     if (topicDate.has(tid)) topicDate.set(tid, k);
   }
 
-  // Build byDate from the (possibly overridden) topicDate map.
+  // Build byDate from the (possibly overridden) topicDate map. Recompute the
+  // window from scratch so an override that moves the last topic *earlier*
+  // doesn't leave firstKey/lastKey pointing past any real content.
   const d2 = getData();
+  firstKey = null; lastKey = null;
   for (const [tid, k] of topicDate) {
     const topic = d2.byId.get(tid);
     if (!topic) continue;
@@ -155,5 +158,5 @@ export function dailyExtras(student, dateKey) {
   const kinds = ['quiz', 'activity', 'game'];
   const featured = kinds[Math.floor(rng() * kinds.length)];
 
-  return { refresher, refresher2, challenge, featured, rngSeed: seedFromKey(dateKey) };
+  return { refresher, refresher2, challenge, featured, rngSeed: seedFromKey(student.id + '|' + dateKey) };
 }

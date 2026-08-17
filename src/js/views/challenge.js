@@ -38,7 +38,7 @@ export async function openChallenge(topic) {
     const wrap = el(`<div class="fade-up text-center py-2">
       <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:${meta.color}18"><i data-lucide="zap" class="w-8 h-8" style="color:${meta.color}"></i></div>
       <p class="font-600 text-lg">Beat the clock!</p>
-      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${student.name} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
+      <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${esc(student.name)} has already mastered this — now a fun stretch. Answer as many as you can in <span class="font-600">${DURATION / 60} minutes</span>. Slightly bigger and trickier than usual, but doable!</p>
       ${best ? `<p class="text-xs text-ink-faint mt-3">Best so far: ${best.correct}/${best.total} correct</p>` : ''}
       <button id="go" class="mt-5 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="play" class="w-4 h-4"></i>Start challenge</button>
     </div>`);
@@ -159,7 +159,7 @@ export async function openChallenge(topic) {
       <p class="text-sm text-ink-soft mt-1">correct in ${fmt(seconds)}</p>
       <p class="mt-3 font-600 text-lg">${great ? 'Awesome work!' : 'Nice effort!'}</p>
       <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${great
-        ? `${student.name} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
+        ? `${esc(student.name)} smashed the stretch challenge. ${raised ? 'A suggestion to make this area harder is waiting for you to approve.' : ''}`
         : `A tricky one — great for keeping skills sharp. Try again anytime to beat the score.`}</p>
       ${raised ? `<div class="mt-4 rounded-xl border border-brand/30 bg-brand-light/50 p-3 text-left flex items-start gap-2.5"><i data-lucide="trending-up" class="w-4 h-4 text-brand-dark shrink-0 mt-0.5"></i><p class="text-xs text-ink-soft">We suggested pitching future <strong>${topic.domain}</strong> work harder. Review it under <strong>Insights → Adaptive suggestions</strong> — you can approve or decline.</p></div>` : ''}
       <div class="mt-6 space-y-2.5">

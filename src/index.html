@@ -4,6 +4,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Homestead — Mastery Homeschool</title>
+<meta name="description" content="A mastery-based homeschool platform for ages 5–13." />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#3f7d5e" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Homestead" />
 <script>
 window.onerror=function(msg,src,line,col,err){window.parent.postMessage({type:'app-error',message:msg,source:src,lineno:line,colno:col,stack:err&&err.stack||''},'*');};
 window.onunhandledrejection=function(e){window.parent.postMessage({type:'app-error',message:'Unhandled promise rejection: '+(e.reason&&e.reason.message||e.reason||'unknown'),stack:e.reason&&e.reason.stack||''},'*');};
@@ -40,5 +48,14 @@ tailwind.config = {
   <div id="modal-root"></div>
   <div id="toast-root" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 items-end"></div>
   <script type="module" src="js/app.js"></script>
+  <script>
+    // Register the service worker (installable PWA + offline-resilient shell).
+    // Best-effort: failures are ignored so the app still works without it.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>

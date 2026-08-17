@@ -1,11 +1,13 @@
 import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast } from '../ui.js';
+import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
 import { aiFeedback } from '../ai.js';
 import { openMasteryTest } from './masterytest.js';
 import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
+import { lineChart, barChart } from '../charts.js';
+import { masteryGrowth, testHistory } from '../reports.js';
 
 let selSubject = 'Mathematics';
 
@@ -15,7 +17,7 @@ export function renderInsights(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-5">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Teacher Insights</h1>
-    <p class="text-ink-soft text-sm mt-1">Feedback and next steps for <span class="font-600 text-ink">${active?.name || 'your student'}</span>, based on real progress and your records.</p>
+    <p class="text-ink-soft text-sm mt-1">Feedback and next steps for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>, based on real progress and your records.</p>
   </div>`));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to see insights.</p>`)); return root; }
@@ -26,7 +28,7 @@ export function renderInsights(params, { navigate }) {
   if (pending.length || adaptEntries.length) {
     const adCard = el(`<div class="bg-paper-card border border-brand/30 rounded-2xl p-5 mb-5">
       <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="trending-up" class="w-4.5 h-4.5 text-brand-dark"></i>Adaptive suggestions</h2>
-      <p class="text-xs text-ink-soft mb-3">Based on how ${active.name} is doing. You decide — nothing changes without your approval.</p>
+      <p class="text-xs text-ink-soft mb-3">Based on how ${esc(active.name)} is doing. You decide — nothing changes without your approval.</p>
       <div id="sugs" class="space-y-2"></div>
       <div id="active" class="mt-3"></div>
     </div>`);
@@ -95,6 +97,30 @@ export function renderInsights(params, { navigate }) {
     </div>
   </div>`));
 
+  // Progress over time: cumulative mastery growth + test-score history
+  const growth = masteryGrowth(active.id, selSubject);
+  const history = testHistory(active.id, selSubject);
+  const chartCard = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 mb-5">
+    <h2 class="font-600 flex items-center gap-2 mb-4"><i data-lucide="line-chart" class="w-4.5 h-4.5 text-brand-dark"></i>Progress over time</h2>
+    <div class="grid sm:grid-cols-2 gap-5">
+      <div>
+        <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1.5">Mastery growth</p>
+        ${growth.points.length
+          ? lineChart([{ color: meta.color, points: growth.points }], { w: 300, h: 116, yMax: Math.max(1, growth.count) })
+          : '<p class="text-xs text-ink-faint py-6 text-center">Mark some topics mastered to see growth here.</p>'}
+        <p class="text-[11px] text-ink-faint mt-1">${growth.count} ${selSubject} topic${growth.count === 1 ? '' : 's'} mastered${growth.firstAt ? ' since ' + fmtDate(growth.firstAt) : ''}</p>
+      </div>
+      <div>
+        <p class="text-[11px] font-600 uppercase tracking-wide text-ink-faint mb-1.5">Test scores</p>
+        ${history.length
+          ? barChart(history.map(t => ({ value: t.pct, color: t.passed ? meta.color : '#d99b45' })), { w: 300, h: 116, yMax: 100 })
+          : '<p class="text-xs text-ink-faint py-6 text-center">No mastery tests taken yet in this subject.</p>'}
+        <p class="text-[11px] text-ink-faint mt-1">${history.length ? `${history.length} test${history.length === 1 ? '' : 's'} · latest ${history[history.length - 1].pct}%` : 'Green = passed, amber = try again'}</p>
+      </div>
+    </div>
+  </div>`);
+  root.appendChild(chartCard);
+
   // Final mastery test card — gated behind all sections passed
   const lastTest = store.lastTest(active.id, selSubject);
   const ready = subjectTestReady(active.id, selSubject);
@@ -122,11 +148,11 @@ export function renderInsights(params, { navigate }) {
       <h2 class="font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-4.5 h-4.5 text-brand-dark"></i>Progress review</h2>
       <button id="gen" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors"><i data-lucide="wand-2" class="w-4 h-4"></i>Generate</button>
     </div>
-    <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${active.name}'s ${selSubject} progress, drawing on your records and their mastery so far.</p></div>
+    <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${esc(active.name)}'s ${selSubject} progress, drawing on your records and their mastery so far.</p></div>
   </div>`);
   const out = fbCard.querySelector('#out');
   fbCard.querySelector('#gen').onclick = async () => {
-    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${active.name}'s work\u2026</div>`;
+    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work\u2026</div>`;
     try {
       const d = getData();
       const recentTopics = recentActivity(active.id, 10)
