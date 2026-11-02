@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
+import { connect as netConnect } from 'node:net';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1624,19 +1625,26 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       await withToken.stop();
     }
 
-    // DNS rebinding (THREAT-MODEL.md G1): an unshared server answers to any
-    // name, but a settings write under a name other than this computer's is
-    // refused, and the page says it is read-only there.
-    const rebound = await spawnHarrington();
+    // DNS rebinding (THREAT-MODEL.md G1, HAR-46): a foreign Host is refused
+    // with 421 before any route runs, and even an extra allowed name or a
+    // non-loopback IP literal in Host on an unshared server cannot change AI
+    // settings.
+    const rebound = await spawnHarrington({ HARRINGTON_ALLOWED_HOSTS: 'alias.home.arpa' });
     try {
       const port = new URL(rebound.url).port;
       const write = { baseUrl: 'http://attacker.test/v1', model: 'm' };
-      const refused = await sendWithHost(port, 'rebind.attacker.test', { body: write });
-      assert.equal(refused.status, 403);
-      assert.deepEqual(refused.json(), { error: LOCAL_ONLY });
-      assert.equal((await sendWithHost(port, `rebind.attacker.test:${port}`, { method: 'DELETE' })).status, 403);
-      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'POST', path: '/api/settings/ai/test' })).status, 403);
-      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'GET' })).json().canChange, false);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { body: write })).status, 421);
+      assert.equal((await sendWithHost(port, `rebind.attacker.test:${port}`, { method: 'DELETE' })).status, 421);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'POST', path: '/api/settings/ai/test' })).status, 421);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'GET' })).status, 421);
+      for (const nonLocalHost of [`alias.home.arpa:${port}`, `192.168.1.20:${port}`]) {
+        const refused = await sendWithHost(port, nonLocalHost, { body: write });
+        assert.equal(refused.status, 403, nonLocalHost);
+        assert.deepEqual(refused.json(), { error: LOCAL_ONLY });
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'DELETE' })).status, 403);
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'POST', path: '/api/settings/ai/test' })).status, 403);
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'GET' })).json().canChange, false);
+      }
       await assert.rejects(stat(join(rebound.dir, 'secrets.json')), { code: 'ENOENT' });
       for (const name of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]) {
         assert.equal((await sendWithHost(port, name, { body: write })).status, 200, name);
@@ -1893,18 +1901,32 @@ function getWithHost(port, hostHeader, path = '/api/health') {
   });
 }
 
-// The same for a settings write: method, JSON body and extra headers.
-function sendWithHost(port, hostHeader, { method = 'PUT', path = '/api/settings/ai', body = null } = {}) {
+// The same for a write or custom request: method, JSON body and extra headers.
+function sendWithHost(port, hostHeader, { method = 'PUT', path = '/api/settings/ai', body = null, headers: extra = {} } = {}) {
   return new Promise((resolve, reject) => {
-    const headers = { Host: hostHeader, ...(body ? { 'Content-Type': 'application/json' } : {}) };
+    const headers = { Host: hostHeader, ...(body ? { 'Content-Type': 'application/json' } : {}), ...extra };
     const req = httpRequest({ host: '127.0.0.1', port, path, method, headers }, (res) => {
       let text = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => { text += chunk; });
-      res.on('end', () => resolve({ status: res.statusCode, json: () => JSON.parse(text) }));
+      res.on('end', () => resolve({ status: res.statusCode, text: () => text, json: () => JSON.parse(text) }));
     });
     req.on('error', reject);
     req.end(body ? JSON.stringify(body) : undefined);
+  });
+}
+
+function rawHttpStatus(port, rawRequest) {
+  return new Promise((resolve, reject) => {
+    const socket = netConnect({ host: '127.0.0.1', port }, () => socket.end(rawRequest));
+    let response = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => { response += chunk; });
+    socket.on('end', () => {
+      const match = response.match(/^HTTP\/1\.[01] (\d{3})\b/);
+      resolve(match ? Number.parseInt(match[1], 10) : 0);
+    });
+    socket.on('error', reject);
   });
 }
 
@@ -1955,13 +1977,59 @@ describe('sign-in form and host names', { concurrency: false }, () => {
     }
   });
 
-  test('a loopback server answers to any host name, as before', async () => {
+  test('a loopback server refuses foreign and malformed Host headers with 421 or 400 (HAR-46)', async () => {
     const local = await spawnHarrington();
     try {
-      const response = await getWithHost(new URL(local.url).port, 'attacker.example');
-      assert.equal(response.status, 200);
+      const port = new URL(local.url).port;
+      for (const hostHeader of ['rebind.attacker.test', `rebind.attacker.test:${port}`, 'attacker.example']) {
+        for (const path of ['/', '/login', '/api/health', '/api/state']) {
+          const refused = await getWithHost(port, hostHeader, path);
+          assert.equal(refused.status, 421, `${hostHeader}${path} should be refused`);
+          assert.match(await refused.text(), /HARRINGTON_ALLOWED_HOSTS/);
+        }
+        const putRefused = await sendWithHost(port, hostHeader, {
+          method: 'PUT',
+          path: '/api/state',
+          headers: { 'If-Match': '"v0"', 'Sec-Fetch-Site': 'same-origin' },
+          body: { students: [{ id: 's1', name: 'Rebound', birthYear: 2018 }] },
+        });
+        assert.equal(putRefused.status, 421, `PUT /api/state with ${hostHeader}`);
+      }
+      await assert.rejects(stat(join(local.dir, 'family-state.json')), { code: 'ENOENT' });
+
+      for (const malformed of [
+        '::1', '[localhost]', `[localhost]:${port}`, `[127.0.0.1]:${port}`,
+        'localhost:0', 'localhost:99999', `127.0.0.1.:${port}`, `attacker.test@localhost:${port}`,
+      ]) {
+        const refused = await getWithHost(port, malformed, '/api/health');
+        assert.ok(refused.status === 400 || refused.status === 421, `Host ${JSON.stringify(malformed)} got ${refused.status}`);
+      }
+      for (const raw of [
+        'GET /api/health HTTP/1.0\r\n\r\n',
+        'GET /api/health HTTP/1.1\r\nConnection: close\r\n\r\n',
+        'GET /api/health HTTP/1.1\r\nHost: \r\nConnection: close\r\n\r\n',
+        `GET /api/health HTTP/1.1\r\nHost: localhost:${port}\r\nHost: rebind.attacker.test\r\nConnection: close\r\n\r\n`,
+      ]) {
+        const status = await rawHttpStatus(port, raw);
+        assert.ok(status === 400 || status === 421, `raw request got ${status}: ${JSON.stringify(raw)}`);
+      }
+
+      for (const allowed of [`localhost:${port}`, 'localhost', `LOCALHOST.:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`, '[::1]']) {
+        assert.equal((await getWithHost(port, allowed, '/api/health')).status, 200, `${allowed} should be allowed`);
+        assert.equal((await getWithHost(port, allowed, '/api/state')).status, 200, `${allowed} /api/state should be allowed`);
+      }
     } finally {
       await local.stop();
+    }
+
+    const withAllowed = await spawnHarrington({ HARRINGTON_ALLOWED_HOSTS: 'family-mac.local' });
+    try {
+      const port = new URL(withAllowed.url).port;
+      assert.equal((await getWithHost(port, `family-mac.local:${port}`, '/api/health')).status, 200);
+      assert.equal((await getWithHost(port, `family-mac.local:${port}`, '/api/state')).status, 200);
+      assert.equal((await getWithHost(port, 'rebind.attacker.test', '/api/state')).status, 421);
+    } finally {
+      await withAllowed.stop();
     }
   });
 

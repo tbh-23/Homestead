@@ -28,6 +28,14 @@ model and not repeated here.
 
 ### G1: the default loopback server answers any Host name (DNS rebinding)
 
+- **Status:** fixed (HAR-46). `hostAllowed()` now checks `Host` on every
+  request regardless of bind address, accepting only `localhost`, valid IPv4
+  and bracketed IPv6 literals, the bind and published names, and
+  `HARRINGTON_ALLOWED_HOSTS`, and refusing missing, duplicate or malformed
+  `Host` headers with `400` or `421`. A default loopback server now answers
+  `421` to `rebind.attacker.test` across `/`, `/login`, `/api/health` and
+  `/api/state` (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
+
 - **Code:** the Host allowlist applies only once the server is shared
   (`server.mjs:550`, `if (!shared) return true`). `tests/server.test.mjs` "a
   loopback server answers to any host name, as before" pins this behavior.

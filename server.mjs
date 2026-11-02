@@ -502,8 +502,8 @@ function accessTokenEnabled() {
 // forwarding headers is refused for the same reason, even when Harrington
 // does not know it is shared. Those headers are only ever a reason to refuse,
 // never to allow: any client can set them.
-// On an unshared server the Host header must name this computer too: a DNS
-// rebinding page reaches 127.0.0.1 as same-origin, but under its own name.
+// On an unshared server the Host header must name this computer too (not even
+// an extra name from HARRINGTON_ALLOWED_HOSTS or a non-loopback IP literal).
 const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
 const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip'];
 function canChangeAiSettings(req) {
@@ -925,23 +925,49 @@ const hostIsLoopback = isLoopbackHost(publishedHost);
 // Shared: something other than this computer is meant to reach Harrington.
 const shared = !bindIsLoopback || !hostIsLoopback;
 
-// DNS rebinding: a web page on an attacker's domain can re-point that domain
-// at this server, and the browser then sends the attacker's name as Host. Once
-// Harrington is shared, it answers only to names the family uses. An IP
-// literal is always accepted: a rebinding attack never arrives as one.
+// DNS rebinding (HAR-46): a web page on an attacker's domain can re-point that
+// domain at this server (including 127.0.0.1), and the browser then sends the
+// attacker's name as Host. Harrington always answers only to names configured
+// for it, whatever the bind address. An IP literal is always accepted: a
+// rebinding attack never arrives as one.
 const allowedHosts = new Set(['localhost', publishedHost.toLowerCase(), host.toLowerCase(), ...extraAllowedHosts]);
 
+function validHostPort(digits) {
+  if (digits.length > 5) return false;
+  const parsed = Number.parseInt(digits, 10);
+  return parsed >= 1 && parsed <= 65535;
+}
+
 function hostHeaderName(req) {
-  const value = String(req.headers.host || '').trim().toLowerCase();
-  const bracketed = value.match(/^\[([^\]]+)\](?::\d+)?$/);
-  if (bracketed) return bracketed[1];
-  return value.replace(/:\d+$/, '').replace(/\.$/, '');
+  if (Array.isArray(req.rawHeaders)) {
+    let count = 0;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      if (req.rawHeaders[i].toLowerCase() === 'host') count += 1;
+    }
+    if (count !== 1) return '';
+  }
+  if (typeof req.headers.host !== 'string') return '';
+  const value = req.headers.host.trim().toLowerCase();
+  if (!value || /\s/.test(value)) return '';
+  const bracketed = value.match(/^\[([^\]]+)\](?::(\d+))?$/);
+  if (bracketed) {
+    if (bracketed[2] !== undefined && !validHostPort(bracketed[2])) return '';
+    return isIP(bracketed[1]) === 6 ? bracketed[1] : '';
+  }
+  const portMatch = value.match(/^(.*?):(\d+)$/);
+  if (portMatch && !validHostPort(portMatch[2])) return '';
+  const hostPart = portMatch ? portMatch[1] : value;
+  if (!hostPart || hostPart.includes(':')) return '';
+  if (hostPart.endsWith('.')) {
+    const trimmed = hostPart.slice(0, -1);
+    return isIP(trimmed) !== 0 ? '' : trimmed;
+  }
+  return hostPart;
 }
 
 function hostAllowed(req) {
-  if (!shared) return true;
   const name = hostHeaderName(req);
-  return isIP(name) !== 0 || allowedHosts.has(name);
+  return Boolean(name) && (isIP(name) !== 0 || allowedHosts.has(name));
 }
 
 const authEnabled = accessToken.length > 0;
@@ -1344,8 +1370,8 @@ server.listen(port, host, () => {
       ? `Published address ${publishedHost} is loopback: the app tells people it runs on this computer only.`
       : `Published address ${publishedHost}: other devices open Harrington there.`);
   }
+  console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
   if (shared) {
-    console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
     console.log('Other devices need HTTPS in front of Harrington for the microphone (docs/DEPLOYMENT.md).');
   }
   console.log(authEnabled

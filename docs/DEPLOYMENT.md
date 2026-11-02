@@ -39,7 +39,7 @@ Option 3 alone does not.
 | `HARRINGTON_PORT` | `4173` | Port. |
 | `HARRINGTON_PUBLISHED_HOST` | same as `HARRINGTON_HOST` | The name other devices open, when a proxy or container sits in front (for example your `.ts.net` name). It decides whether the app says "runs on this computer only" or "shared with your other devices", and it is a host name Harrington answers to. |
 | `HARRINGTON_ACCESS_TOKEN` | unset | When set (16 characters or more), every `/api/*` request except `/api/health` needs a sign-in cookie. Each device signs in once at `/login`. |
-| `HARRINGTON_ALLOWED_HOSTS` | unset | Extra host names Harrington answers to once it is shared, comma-separated (for example a Tailscale short name such as `family-host`). |
+| `HARRINGTON_ALLOWED_HOSTS` | unset | Extra host names Harrington answers to, comma-separated (for example a Tailscale short name such as `family-host`). |
 
 At startup the server logs the bind address and whether it is loopback, the
 published address when it differs, the host names it answers to, and whether
@@ -49,17 +49,14 @@ on, `signedIn` for the device asking.
 
 ### Host names Harrington answers to
 
-Once Harrington is shared (the bind address or the published address is not
-loopback), it answers only to `localhost`, the published address, the bind
-address, the names in `HARRINGTON_ALLOWED_HOSTS`, and any IP address. A request
-for any other name gets `421` and one line of text. This stops *DNS
-rebinding*, where a web page on someone else's domain re-points that domain at
-your Harrington and reads it through the family's browser. If a device you use
-gets that `421`, add the name it uses to `HARRINGTON_ALLOWED_HOSTS` and restart.
-A server left on loopback with no published address answers to any name, as
-before, which leaves it open to DNS rebinding from a web page open on the same
-computer: turn the access token on there too ("What a family should do",
-item 1, below).
+Whatever the bind address, Harrington answers only to `localhost`, the
+published address, the bind address, the names in `HARRINGTON_ALLOWED_HOSTS`,
+and any IP address. A request for any other name gets `421` and one line of
+text. This stops *DNS rebinding*, where a web page on someone else's domain
+re-points that domain at your Harrington (including `127.0.0.1` on the same
+computer) and reads or changes data through the family's browser. If a device
+you use gets that `421`, add the name it uses to `HARRINGTON_ALLOWED_HOSTS` and
+restart.
 
 Make a token with:
 
@@ -681,11 +678,13 @@ access token.
 A short checklist from the threat model ([security/THREAT-MODEL.md](security/THREAT-MODEL.md)).
 Each item closes a way family data could leak or be lost today.
 
-1. **Turn the access token on, even if Harrington runs only on one
-   computer.** Without it, a web page open in a browser on the host can trick
-   that browser into reading and changing your family data (DNS rebinding).
-   Make the token with the command above, keep it in a password manager, and
-   sign in with the form, not the link.
+1. **Turn the access token on whenever another person or program could reach
+   the port, even on one computer.** Harrington refuses foreign `Host` names on
+   loopback (DNS rebinding), and with the token on every `/api/*` route also
+   requires a sign-in cookie, so other browser profiles, local users and
+   unauthorised scripts on the host cannot read or change family data. Make the
+   token with the command above, keep it in a password manager, and sign in
+   with the form, not the link.
 2. **Share it over HTTPS (option 1 or 2), never by opening a port on your
    router**, and never with `tailscale funnel`.
 3. **Encrypt the host computer's disk** (FileVault on a Mac, BitLocker or
