@@ -352,6 +352,36 @@ async function backupAgeDays() {
   return Math.max(0, Math.floor((Date.now() - newest) / (24 * 60 * 60 * 1000)));
 }
 
+// ---- Uploaded recordings (HAR-47) ----
+// Only recognised audio MIME essence types are stored or served inline; any
+// other upload or restored sidecar is downgraded to application/octet-stream
+// as an attachment, and every recording response carries a sandbox CSP so
+// opening /api/audio/<key> directly cannot execute script in Harrington's origin.
+const SAFE_AUDIO_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/wave',
+  'audio/x-wav',
+  'audio/aac',
+  'audio/x-m4a',
+  'audio/flac',
+]);
+
+function safeAudioContentType(raw) {
+  if (typeof raw !== 'string') return null;
+  const essence = raw.split(';', 1)[0].trim().toLowerCase();
+  return SAFE_AUDIO_TYPES.has(essence) ? essence : null;
+}
+
+function safeAudioAttachmentName(key) {
+  const base = String(key || '').split(/[\\/]/).pop() || '';
+  const stem = base.replace(/\.[^.]*$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'recording';
+  return `${stem}.bin`;
+}
+
 function keyPath(directory, key, extension) {
   const encoded = Buffer.from(key, 'utf8').toString('base64url');
   if (!encoded || encoded.length > 500) {
@@ -1236,16 +1266,25 @@ async function handleApi(req, res, url) {
   if (audioKey !== null) {
     const path = keyPath(audioDir, audioKey, '.bin');
     const metaPath = keyPath(audioDir, audioKey, '.meta.json');
-    if (req.method === 'GET') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
       try {
-        const [details, metadata] = await Promise.all([stat(path), readJsonFile(metaPath, {})]);
+        const [details, metadata] = await Promise.all([
+          stat(path),
+          readJsonFile(metaPath, {}).catch(() => ({})),
+        ]);
+        if (!details.isFile()) throw Object.assign(new Error('Recording not found'), { code: 'ENOENT' });
+        const safeType = safeAudioContentType(metadata?.contentType);
         res.writeHead(200, {
           'Cache-Control': 'private, max-age=3600',
-          'Content-Type': metadata.contentType || 'application/octet-stream',
+          'Content-Type': safeType || 'application/octet-stream',
           'Content-Length': details.size,
+          'Content-Security-Policy': 'sandbox',
           'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          ...(safeType ? {} : { 'Content-Disposition': `attachment; filename="${safeAudioAttachmentName(audioKey)}"` }),
         });
-        streamFile(res, path);
+        if (req.method === 'HEAD') res.end();
+        else streamFile(res, path);
       } catch (error) {
         if (error.code === 'ENOENT') sendJson(res, 404, { error: 'Recording not found' });
         else throw error;
@@ -1254,10 +1293,11 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'PUT') {
       const body = await readBody(req, AUDIO_LIMIT);
+      const contentType = safeAudioContentType(req.headers['content-type']) || 'application/octet-stream';
       await mkdir(audioDir, { recursive: true });
       await Promise.all([
         atomicWrite(path, body),
-        atomicWrite(metaPath, `${JSON.stringify({ contentType: req.headers['content-type'] || 'application/octet-stream' })}\n`),
+        atomicWrite(metaPath, `${JSON.stringify({ contentType })}\n`),
       ]);
       send(res, 204);
       return true;

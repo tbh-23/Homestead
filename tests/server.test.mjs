@@ -534,9 +534,114 @@ test('persists lesson cache entries and recordings', async () => {
   assert.equal(savedAudio.status, 204);
   const loadedAudio = await fetch(`${baseUrl}/api/audio/recording-1.webm`);
   assert.equal(loadedAudio.headers.get('content-type'), 'audio/webm');
+  assert.equal(loadedAudio.headers.get('content-security-policy'), 'sandbox');
+  assert.equal(loadedAudio.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(loadedAudio.headers.get('x-frame-options'), 'DENY');
+  assert.equal(loadedAudio.headers.get('content-disposition'), null);
   assert.deepEqual(new Uint8Array(await loadedAudio.arrayBuffer()), audio);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`, { method: 'DELETE' })).status, 204);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`)).status, 404);
+});
+
+test('hardens /api/audio/ uploads and legacy sidecars against stored script execution (HAR-47)', async () => {
+  const metaPath = (key) => join(dataDir, 'audio', `${Buffer.from(key, 'utf8').toString('base64url')}.meta.json`);
+  const binPath = (key) => join(dataDir, 'audio', `${Buffer.from(key, 'utf8').toString('base64url')}.bin`);
+  const scriptPayload = '<script>document.title="LEAK"</script>';
+
+  // Hostile Content-Types on PUT are normalised to application/octet-stream on disk
+  // and served back only as sandboxed attachments.
+  for (const [key, contentType, expectedDisposition] of [
+    ['evil', 'text/html', 'attachment; filename="evil.bin"'],
+    ['trap.html', 'text/html; charset=utf-8', 'attachment; filename="trap.bin"'],
+    ['vector.svg', 'image/svg+xml', 'attachment; filename="vector.bin"'],
+    ['script.js', 'application/javascript', 'attachment; filename="script.bin"'],
+    ['movie.webm', 'video/webm', 'attachment; filename="movie.bin"'],
+    ['odd"name.html', 'text/html', 'attachment; filename="odd-name.bin"'],
+  ]) {
+    const encoded = encodeURIComponent(key);
+    const put = await fetch(`${baseUrl}/api/audio/${encoded}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: scriptPayload,
+    });
+    assert.equal(put.status, 204, key);
+    assert.deepEqual(JSON.parse(await readFile(metaPath(key), 'utf8')), { contentType: 'application/octet-stream' });
+
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${encoded}`, { method });
+      assert.equal(res.status, 200, `${method} ${key}`);
+      assert.equal(res.headers.get('content-type'), 'application/octet-stream');
+      assert.equal(res.headers.get('content-disposition'), expectedDisposition);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+      if (method === 'GET') assert.equal(await res.text(), scriptPayload);
+    }
+    assert.equal((await fetch(`${baseUrl}/api/audio/${encoded}`, { method: 'DELETE' })).status, 204);
+  }
+
+  // Missing Content-Type on PUT also stores and serves as application/octet-stream.
+  assert.equal((await fetch(`${baseUrl}/api/audio/no-type`, { method: 'PUT', body: new Uint8Array([9, 8, 7]) })).status, 204);
+  const noType = await fetch(`${baseUrl}/api/audio/no-type`);
+  assert.equal(noType.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(noType.headers.get('content-disposition'), 'attachment; filename="no-type.bin"');
+  await fetch(`${baseUrl}/api/audio/no-type`, { method: 'DELETE' });
+
+  // A pre-existing or restored sidecar on disk with text/html, image/svg+xml,
+  // or corrupt JSON is still downgraded on GET and HEAD.
+  await mkdir(join(dataDir, 'audio'), { recursive: true });
+  for (const [key, rawMeta] of [
+    ['restored-html', '{"contentType":"text/html"}\n'],
+    ['restored-svg', '{"contentType":"image/svg+xml"}\n'],
+    ['restored-corrupt', '{not-json'],
+  ]) {
+    await writeFile(binPath(key), scriptPayload);
+    await writeFile(metaPath(key), rawMeta);
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${key}`, { method });
+      assert.equal(res.status, 200, `${method} ${key}`);
+      assert.equal(res.headers.get('content-type'), 'application/octet-stream');
+      assert.equal(res.headers.get('content-disposition'), `attachment; filename="${key}.bin"`);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    }
+    await fetch(`${baseUrl}/api/audio/${key}`, { method: 'DELETE' });
+  }
+
+  // Legitimate browser audio MIME types (including codec parameters) are stored
+  // normalised to their clean essence type and served inline with sandbox headers.
+  for (const [sent, expected] of [
+    ['audio/webm;codecs=opus', 'audio/webm'],
+    ['AUDIO/MP4; codecs="mp4a.40.2"', 'audio/mp4'],
+    ['audio/ogg; codecs=opus', 'audio/ogg'],
+    ['audio/mpeg', 'audio/mpeg'],
+    ['audio/wav', 'audio/wav'],
+    ['audio/wave', 'audio/wave'],
+    ['audio/x-wav', 'audio/x-wav'],
+    ['audio/aac', 'audio/aac'],
+    ['audio/x-m4a', 'audio/x-m4a'],
+    ['audio/flac', 'audio/flac'],
+  ]) {
+    const key = `good-${expected.slice('audio/'.length)}`;
+    const put = await fetch(`${baseUrl}/api/audio/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': sent },
+      body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+    });
+    assert.equal(put.status, 204, sent);
+    assert.deepEqual(JSON.parse(await readFile(metaPath(key), 'utf8')), { contentType: expected });
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${key}`, { method });
+      assert.equal(res.status, 200, `${method} ${sent}`);
+      assert.equal(res.headers.get('content-type'), expected);
+      assert.equal(res.headers.get('content-disposition'), null);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    }
+    await fetch(`${baseUrl}/api/audio/${key}`, { method: 'DELETE' });
+  }
 });
 
 test('lists saved lesson keys and times by prefix, without content', async () => {

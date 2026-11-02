@@ -80,6 +80,18 @@ model and not repeated here.
 
 ### G2: an uploaded recording's Content-Type is served back inline
 
+- **Status:** fixed (HAR-47). `PUT /api/audio/<key>` now normalises the header
+  to an allowlist of clean `audio/*` essence types (`audio/webm`, `audio/ogg`,
+  `audio/mp4`, `audio/mpeg`, `audio/wav`, `audio/wave`, `audio/x-wav`,
+  `audio/aac`, `audio/x-m4a`, `audio/flac`), storing anything else as
+  `application/octet-stream`. `GET` and `HEAD /api/audio/<key>` re-check the
+  stored `.meta.json` sidecar (covering older folders and restored backups),
+  always send `Content-Security-Policy: sandbox`,
+  `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`, and force
+  `Content-Type: application/octet-stream` with
+  `Content-Disposition: attachment` whenever the stored type is outside the
+  allowlist (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
+
 - **Code:** `server.mjs:764` stores the request's `Content-Type`. `:748`
   serves it back with no `X-Frame-Options`, no CSP and no
   `Content-Disposition`.
