@@ -1,6 +1,6 @@
 import { SUBJECTS, subjectMeta } from '../data.js';
 import * as store from '../store.js';
-import { el, refreshIcons, toast, openModal } from '../ui.js';
+import { el, esc, refreshIcons, toast, openModal } from '../ui.js';
 import { award, XP } from '../game.js';
 import { isCorrect } from '../grading.js';
 import { countLabel, formatCount } from '../format.js';
@@ -44,10 +44,10 @@ export function openTopicPractice(topic) {
     <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
     <p class="font-600 text-lg">Nothing to practice for this topic today</p>
     <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">${queued.length
-      ? `${countLabel(queued.length, 'missed question')} from ${esc(topic.name)} come${queued.length === 1 ? 's' : ''} back on ${next}.`
+      ? `${esc(countLabel(queued.length, 'missed question'))} from ${esc(topic.name)} come${queued.length === 1 ? 's' : ''} back on ${esc(next)}.`
       : `Questions missed on a ${esc(topic.name)} test come back here for retries. None are queued.`}</p>
     ${due
-      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${formatCount(due)})</button>`
+      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${esc(formatCount(due))})</button>`
       : `<p class="text-xs text-ink-faint mt-4">No retries are due on other topics either.</p>`}
   </div>`);
   const all = empty.querySelector('#allqueue');
@@ -71,10 +71,10 @@ function runSession(stage, m, student, items, restart) {
     stage.innerHTML = '';
     const wrap = el(`<div class="fade-up">
       <div class="flex items-center justify-between mb-4">
-        <span class="text-xs text-ink-soft">Retry ${i + 1} of ${items.length}</span>
-        <span class="text-xs font-medium" style="color:${meta.color}">${esc(item.sourceLabel || item.subject)}</span>
+        <span class="text-xs text-ink-soft">Retry ${esc(i + 1)} of ${esc(items.length)}</span>
+        <span class="text-xs font-medium" style="color:${esc(meta.color)}">${esc(item.sourceLabel || item.subject)}</span>
       </div>
-      <div class="h-1.5 rounded-full bg-paper-line overflow-hidden mb-5"><div class="h-full rounded-full transition-all" style="width:${(i / items.length) * 100}%;background:${meta.color}"></div></div>
+      <div class="h-1.5 rounded-full bg-paper-line overflow-hidden mb-5"><div class="h-full rounded-full transition-all" style="width:${esc((i / items.length) * 100)}%;background:${esc(meta.color)}"></div></div>
       <div class="rounded-2xl border border-paper-line bg-paper p-5">
         ${isTask ? `<p class="text-xs font-medium text-ink-faint mb-1.5 flex items-center gap-1.5"><i data-lucide="hand" class="w-3.5 h-3.5"></i>Hands-on task · a parent checks this one</p>` : ''}
         <p class="text-base font-600 mb-4">${esc(item.q)}</p>
@@ -86,7 +86,7 @@ function runSession(stage, m, student, items, restart) {
 
     const opts = wrap.querySelector('#opts');
     const controls = wrap.querySelector('#controls');
-    const check = el(`<button class="w-full px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90 disabled:opacity-40" style="background:${meta.color}" disabled>Check answer</button>`);
+    const check = el(`<button class="w-full px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90 disabled:opacity-40" style="background:${esc(meta.color)}" disabled>Check answer</button>`);
 
     const grade = (correct) => {
       store.gradePracticeItem(student.id, item.id, correct);
@@ -100,7 +100,7 @@ function runSession(stage, m, student, items, restart) {
       // answer, so the parent observes and marks the attempt.
       opts.appendChild(el(`<div class="rounded-lg border border-paper-line bg-paper-card p-3 text-sm"><span class="font-medium">Success looks like:</span> ${esc(item.answer || '')}</div>`));
       const row = el(`<div class="grid grid-cols-2 gap-2"></div>`);
-      const done = el(`<button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${meta.color}"><i data-lucide="check" class="w-4 h-4"></i>Done</button>`);
+      const done = el(`<button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-white font-medium transition-opacity hover:opacity-90" style="background:${esc(meta.color)}"><i data-lucide="check" class="w-4 h-4"></i>Done</button>`);
       const notYet = el(`<button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i>Not yet</button>`);
       done.onclick = () => grade(true);
       notYet.onclick = () => grade(false);
@@ -139,7 +139,7 @@ function runSession(stage, m, student, items, restart) {
     stage.appendChild(el(`<div class="fade-up text-center py-4">
       <div class="w-20 h-20 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="party-popper" class="w-9 h-9 text-brand-dark"></i></div>
       <p class="font-600 text-lg">Practice session complete!</p>
-      <p class="text-sm text-ink-soft mt-1">${total} retr${total > 1 ? 'ies' : 'y'} · <span class="text-brand-dark font-medium">${results.correct} correct</span>${results.missed ? ` · ${results.missed} to revisit` : ''}</p>
+      <p class="text-sm text-ink-soft mt-1">${esc(total)} retr${total > 1 ? 'ies' : 'y'} · <span class="text-brand-dark font-medium">${esc(results.correct)} correct</span>${results.missed ? ` · ${esc(results.missed)} to revisit` : ''}</p>
       <p class="text-xs text-ink-faint mt-3 max-w-sm mx-auto">Correct answers come back after a longer delay next time; missed ones return sooner — the same spacing behind active recall, now applied to real problems.</p>
       <div class="mt-6 space-y-2.5">
         <button id="again" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Practice more</button>
@@ -159,7 +159,7 @@ function showFeedback(wrap, item, correct, next) {
   controls.innerHTML = '';
   controls.appendChild(el(`<div class="rounded-xl border ${correct ? 'border-brand/30 bg-brand-light/30' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3.5 mb-3 flex items-start gap-2.5">
     <i data-lucide="${correct ? 'check-circle-2' : 'x-circle'}" class="w-4 h-4 shrink-0 mt-0.5" style="color:${correct ? '#3f6b3b' : '#a4473a'}"></i>
-    <p class="text-sm">${item.type === 'task' ? (correct ? 'Nice work!' : 'This one will come back soon for another try.') : correct ? 'Correct!' : `Correct answer: <span class="font-600">${esc(formatAnswer(item))}</span>`}</p>
+    <p class="text-sm">${item.type === 'task' && correct ? 'Nice work!' : item.type === 'task' ? 'This one will come back soon for another try.' : correct ? 'Correct!' : `Correct answer: <span class="font-600">${esc(formatAnswer(item))}</span>`}</p>
   </div>`));
   const nextBtn = el(`<button class="w-full px-4 py-3 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Continue</button>`);
   nextBtn.onclick = next;
@@ -177,7 +177,7 @@ function shell(topicName = '') {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-brand/10"><i data-lucide="repeat" class="w-5 h-5 text-brand-dark"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">Spaced practice${topicName ? ' · ' + esc(topicName) : ''}</p>
+        <p class="text-xs text-ink-faint">Spaced practice${topicName ? ` · ${esc(topicName)}` : ''}</p>
         <h3 class="font-display text-lg font-600 leading-tight">Missed questions, retried</h3>
       </div>
     </div>
@@ -187,4 +187,3 @@ function shell(topicName = '') {
   const m = openModal(body, { wide: true });
   return { stage, m };
 }
-function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

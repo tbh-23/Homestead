@@ -132,7 +132,7 @@ export function safeInterpolation(expr, allowed = new Set(), helpers = []) {
   if (allowed.has(expr) || wholeCall(expr, ESCAPERS) || wholeCall(expr, helpers) || /^\d+$/.test(expr)) return true;
   const s = shape(expr).replace(/\s+/g, ' ');
   if (literalChoice(s)) return true;
-  return /^[\w$.]+\.map\(\(?\w+\)? => S\)\.join\((?:S)?\)$/.test(s);
+  return /^[\w$.]+\.map\((?:\w+|\(\w+(?:, \w+)?\)) => S\)\.join\((?:S)?\)$/.test(s);
 }
 
 // Interpolations in markup templates of `src` that are not safe, as

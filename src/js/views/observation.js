@@ -41,7 +41,7 @@ export function openObservation(topic, student = store.activeStudent()) {
     <fieldset>
       <legend class="text-sm font-medium mb-2">What did you see ${esc(student.name)} do?</legend>
       <div class="space-y-2" id="ob-items">${items.map((text, i) => `<label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper cursor-pointer hover:border-brand/40">
-        <input type="checkbox" class="mt-0.5 accent-[#3f6b3b]" data-i="${i}" />
+        <input type="checkbox" class="mt-0.5 accent-[#3f6b3b]" data-i="${esc(i)}" />
         <span class="text-sm text-ink leading-snug">${esc(text)}</span>
       </label>`).join('')}</div>
     </fieldset>

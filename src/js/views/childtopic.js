@@ -28,9 +28,9 @@ export function openChildTopic(topic) {
     <div class="flex items-center gap-3">
       ${growthIcon(stage, 56)}
       <div class="min-w-0">
-        <p class="text-sm font-600 flex items-center gap-1.5" style="color:${meta.color}"><i data-lucide="${meta.icon}" class="w-4 h-4"></i>${esc(topic.subject)}</p>
+        <p class="text-sm font-600 flex items-center gap-1.5" style="color:${esc(meta.color)}"><i data-lucide="${esc(meta.icon)}" class="w-4 h-4"></i>${esc(topic.subject)}</p>
         <h2 class="font-display text-2xl font-600 leading-tight">${esc(topic.name)}</h2>
-        <p class="text-sm font-600" style="color:${GROWTH[stage].color}">${GROWTH[stage].kid}</p>
+        <p class="text-sm font-600" style="color:${esc(GROWTH[stage].color)}">${esc(GROWTH[stage].kid)}</p>
       </div>
     </div>
     <section class="mt-5 ct-how hidden" aria-labelledby="ct-how">
@@ -43,7 +43,7 @@ export function openChildTopic(topic) {
     ${ideas.length ? `<section class="mt-5" aria-labelledby="ct-ideas">
       <h3 id="ct-ideas" class="font-display text-xl font-600 mb-2">Things to try with a grown-up</h3>
       <div class="grid gap-2.5">${ideas.map(a => `<div class="rounded-2xl bg-paper border border-paper-line p-4 flex gap-3">
-        <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center shrink-0" style="color:${meta.color}"><i data-lucide="${a.icon}" class="w-5 h-5"></i></span>
+        <span class="w-10 h-10 rounded-full bg-paper-card flex items-center justify-center shrink-0" style="color:${esc(meta.color)}"><i data-lucide="${esc(a.icon)}" class="w-5 h-5"></i></span>
         <span class="min-w-0"><span class="block font-600">${esc(a.title)}</span><span class="block text-sm text-ink-soft leading-snug mt-0.5">${esc(a.body)}</span></span>
       </div>`).join('')}</div>
     </section>` : ''}

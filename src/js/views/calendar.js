@@ -156,7 +156,7 @@ function monthPanel(active, today, navigate) {
 
   // legend
   wrap.appendChild(el(`<div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-4 text-[11px] text-ink-soft">
-    ${subjectNames().map((s) => [s, subjectMeta(s)]).map(([s, m]) => `<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${m.color}"></span>${s}</span>`).join('')}
+    ${subjectNames().map((s) => [s, subjectMeta(s)]).map(([s, m]) => `<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${esc(m.color)}"></span>${esc(s)}</span>`).join('')}
   </div>`));
 
   return wrap;
