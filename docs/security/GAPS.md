@@ -123,6 +123,16 @@ model and not repeated here.
 
 ### G3: `/login` has no throttling, no failure log and no entropy floor
 
+- **Status:** fixed (HAR-48). Startup now refuses `HARRINGTON_ACCESS_TOKEN`
+  values shorter than 22 characters, containing spaces or non-printable
+  characters, using fewer than two character classes, or having fewer than 8
+  distinct characters. `/login` tracks failed attempts per normalised socket
+  `remoteAddress` (bounded to 1,024 entries, ignoring `X-Forwarded-For`),
+  enforcing exponential backoff after five failures (`1s` doubling up to `60s`,
+  answering `429` with `Retry-After`) and logging one warning line per `401` or
+  `429` with the source address and failure count, never the submitted or
+  expected token (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
+
 - **What happens:** any 16-character token is accepted, including a
   dictionary phrase. One device can make about 590 guesses a second, and
   nothing is logged.

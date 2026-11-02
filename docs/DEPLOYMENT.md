@@ -38,7 +38,7 @@ Option 3 alone does not.
 | `HARRINGTON_HOST` | `127.0.0.1` | Address the server binds to. Must be an IP address or a host name; the server refuses to start otherwise. |
 | `HARRINGTON_PORT` | `4173` | Port. |
 | `HARRINGTON_PUBLISHED_HOST` | same as `HARRINGTON_HOST` | The name other devices open, when a proxy or container sits in front (for example your `.ts.net` name). It decides whether the app says "runs on this computer only" or "shared with your other devices", and it is a host name Harrington answers to. |
-| `HARRINGTON_ACCESS_TOKEN` | unset | When set (16 characters or more), every `/api/*` request except `/api/health` needs a sign-in cookie. Each device signs in once at `/login`. |
+| `HARRINGTON_ACCESS_TOKEN` | unset | When set (at least 22 characters, mixing character classes; use the command below), every `/api/*` request except `/api/health` needs a sign-in cookie. Each device signs in once at `/login`. |
 | `HARRINGTON_ALLOWED_HOSTS` | unset | Extra host names Harrington answers to, comma-separated (for example a Tailscale short name such as `family-host`). |
 
 At startup the server logs the bind address and whether it is loopback, the
@@ -211,7 +211,9 @@ with the token (or open `https://harrington.home.arpa` if the token is off).
 - **the sign-in page** at `/login` has one password field. The right token
   sets the cookie (HttpOnly, SameSite=Strict, `Secure` when the request came
   over HTTPS or through a proxy that says so) and goes to the app; a wrong
-  token gets a `401` page and no cookie. Your password manager can fill it;
+  token gets a `401` page, is noted in the server log by source address, and
+  sets no cookie (after five wrong tries from one address, `/login` backs off
+  with `429`). Your password manager can fill it;
 - **the sign-in link** `/login?token=YOUR-TOKEN` does the same in one tap,
   which is handy on a phone. It redirects to `/`, so the token leaves the
   address bar, but the link itself stays in the browser's history (see below);
@@ -247,9 +249,11 @@ in can read or change data.
 
 ### What the token does not protect
 
-- **No limit on sign-in attempts.** Nothing slows down someone guessing. A
-  random 24-byte token (the command above) is what makes guessing hopeless;
-  never use a short or memorable one.
+- **Sign-in throttling is per source address.** After five wrong tries from one
+  address, `/login` backs off up to 60 seconds (`429`) and logs the address.
+  Behind a reverse proxy on the same host every device shares `127.0.0.1`, so
+  keep using a random 24-byte token (the command above), which the startup
+  check expects and which makes guessing hopeless from any number of addresses.
 - **The sign-in link is remembered.** `/login?token=...` stays in the
   browser's history and address-bar suggestions, and in synced history on
   every device signed in to the same browser account. Prefer the form; if you

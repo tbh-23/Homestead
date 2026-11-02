@@ -2061,12 +2061,12 @@ describe('sign-in form and host names', { concurrency: false }, () => {
         assert.equal(failed.status, 401, `POST with ${JSON.stringify(token)} should fail`);
         assert.equal(failed.headers.get('set-cookie'), null);
       }
+      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
       const noBody = await fetch(`${guarded.url}/login`, { method: 'POST', redirect: 'manual' });
       assert.equal(noBody.status, 401);
       const oversized = await postLogin(guarded.url, `${TOKEN}${' '.repeat(5000)}`);
       assert.equal(oversized.status, 413);
       assert.equal(oversized.headers.get('set-cookie'), null);
-      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
 
       const ok = await postLogin(guarded.url, TOKEN);
       assert.equal(ok.status, 303);
@@ -2076,9 +2076,130 @@ describe('sign-in form and host names', { concurrency: false }, () => {
       assert.doesNotMatch(setCookie, /Secure/);
       assert.match((await postLogin(guarded.url, TOKEN, { 'X-Forwarded-Proto': 'https' })).headers.get('set-cookie'), /; Secure/);
       const cookie = setCookie.split(';')[0];
-      assert.equal((await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } })).status, 200);
+      assert.equal(await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } }).then((r) => r.status), 200);
     } finally {
       await guarded.stop();
+    }
+  });
+
+  test('refuses weak access tokens at startup without echoing the token (HAR-48)', async () => {
+    for (const weak of [
+      'short',
+      'Ab1!cD2@eF3#gH4$iJ5%k', // 21 chars (< 22)
+      'paste-your-token-here', // 21 chars
+      'a'.repeat(24), // single character class (lowercase)
+      'A'.repeat(24), // single character class (uppercase)
+      '1'.repeat(24), // single character class (digits)
+      '!'.repeat(24), // single character class (symbols)
+      'alllowercasewordsphrase', // 23 chars, single class
+      'a1'.repeat(12), // 24 chars, 2 classes, but only 2 distinct characters
+      'Aa1!'.repeat(6), // 24 chars, 4 classes, but only 4 distinct characters
+      'abc123def456 ghi789jkl012', // internal space
+    ]) {
+      const run = spawnSync(process.execPath, ['server.mjs'], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          HARRINGTON_HOST: '127.0.0.1',
+          HARRINGTON_PORT: '0',
+          HARRINGTON_ACCESS_TOKEN: weak,
+          HARRINGTON_PUBLISHED_HOST: '',
+          HARRINGTON_ALLOWED_HOSTS: '',
+        },
+        encoding: 'utf8',
+      });
+      assert.equal(run.status, 1, `weak token ${JSON.stringify(weak)} should exit 1`);
+      assert.match(run.stderr, /HARRINGTON_ACCESS_TOKEN/);
+      assert.match(run.stderr, /docs\/DEPLOYMENT\.md/);
+      assert.equal(run.stderr.includes(weak), false, 'stderr must never print the token');
+    }
+
+    // Valid 22+ char base64url and hex tokens start cleanly.
+    for (const strong of ['Ab1_cD2-eF3_gH4-iJ5_kL', '0123456789abcdef0123456789abcdef']) {
+      const server = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: strong });
+      try {
+        assert.equal((await (await fetch(`${server.url}/api/health`)).json()).authEnabled, true);
+      } finally {
+        await server.stop();
+      }
+    }
+  });
+
+  test('throttles /login after 5 failures with exponential backoff and logs the source address only (HAR-48)', async () => {
+    // Default 1s base window: 5 wrong attempts return 401, the 6th immediately returns 429 with Retry-After: 1.
+    const defaultServer = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      // Plain GET /login renders the sign-in page without counting against the address.
+      for (let i = 0; i < 8; i += 1) {
+        assert.equal((await fetch(`${defaultServer.url}/login`)).status, 200);
+      }
+      assert.doesNotMatch(defaultServer.output(), /Sign-in refused/);
+
+      for (let i = 1; i <= 5; i += 1) {
+        const res = i % 2 === 1
+          ? await postLogin(defaultServer.url, `LEAK_MARKER_${i}\nFAKE_LOG_LINE`)
+          : await fetch(`${defaultServer.url}/login?token=${encodeURIComponent(`LEAK_MARKER_${i}\r\nFAKE_LOG_LINE`)}`, { redirect: 'manual' });
+        assert.equal(res.status, 401, `attempt ${i}`);
+      }
+
+      // Immediately locked out: even the right token and a spoofed X-Forwarded-For get 429.
+      const lockedRight = await postLogin(defaultServer.url, TOKEN, { 'X-Forwarded-For': '203.0.113.77' });
+      assert.equal(lockedRight.status, 429);
+      assert.equal(lockedRight.headers.get('retry-after'), '1');
+      assert.equal(lockedRight.headers.get('set-cookie'), null);
+      assert.match(await lockedRight.text(), /Too many sign-in attempts/);
+
+      const lockedLink = await fetch(`${defaultServer.url}/login?token=${encodeURIComponent(TOKEN)}`, {
+        redirect: 'manual',
+        headers: { 'X-Forwarded-For': '198.51.100.9' },
+      });
+      assert.equal(lockedLink.status, 429);
+      assert.equal(lockedLink.headers.get('retry-after'), '1');
+
+      // Plain GET /login (no token parameter) still shows the form during cooldown.
+      assert.equal((await fetch(`${defaultServer.url}/login`)).status, 200);
+
+      const log = await waitForOutput(defaultServer.output, /throttled \(429, failures=5/);
+      const failureLines = log.split('\n').filter((line) => line.includes('Sign-in refused'));
+      assert.equal(failureLines.length, 7, log);
+      for (let i = 1; i <= 5; i += 1) {
+        assert.match(failureLines[i - 1], new RegExp(`Sign-in refused for 127\\.0\\.0\\.1: unauthorised \\(401, failures=${i}\\)$`));
+      }
+      assert.match(failureLines[5], /Sign-in refused for 127\.0\.0\.1: throttled \(429, failures=5, retryAfter=1s\)$/);
+      assert.ok(!log.includes('LEAK_MARKER') && !log.includes('FAKE_LOG_LINE') && !log.includes(TOKEN), 'submitted and expected tokens are never logged');
+    } finally {
+      await defaultServer.stop();
+    }
+
+    // Fast base window (50 ms): verify cooldown expiry, exponential doubling, and counter reset on success.
+    const fastServer = await spawnHarrington({
+      HARRINGTON_ACCESS_TOKEN: TOKEN,
+      HARRINGTON_LOGIN_BACKOFF_BASE_MS: '50',
+    });
+    try {
+      for (let i = 0; i < 5; i += 1) {
+        assert.equal((await postLogin(fastServer.url, 'wrong-guess')).status, 401);
+      }
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'locked during first 50 ms window');
+
+      // Wait past the 50 ms window, then fail a 6th time -> doubles to 100 ms.
+      await new Promise((resolve) => setTimeout(resolve, 65));
+      assert.equal((await postLogin(fastServer.url, 'wrong-guess-6')).status, 401, '6th wrong guess after cooldown');
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'locked immediately in doubled 100 ms window');
+      await new Promise((resolve) => setTimeout(resolve, 55));
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'still locked halfway through doubled 100 ms window');
+
+      // Once the 100 ms window elapses, the right token succeeds and clears the failure counter.
+      await new Promise((resolve) => setTimeout(resolve, 65));
+      const ok = await postLogin(fastServer.url, TOKEN);
+      assert.equal(ok.status, 303);
+      assert.match(ok.headers.get('set-cookie') || '', /^harrington_session=/);
+
+      // Counter was cleared: one wrong attempt gets 401 and the next right attempt works straight away.
+      assert.equal((await postLogin(fastServer.url, 'wrong-after-reset')).status, 401);
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 303);
+    } finally {
+      await fastServer.stop();
     }
   });
 

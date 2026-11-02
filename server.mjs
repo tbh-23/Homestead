@@ -39,7 +39,9 @@ const publishedHost = (process.env.HARRINGTON_PUBLISHED_HOST || '').trim() || ho
 const accessToken = (process.env.HARRINGTON_ACCESS_TOKEN || '').trim();
 const extraAllowedHosts = (process.env.HARRINGTON_ALLOWED_HOSTS || '')
   .split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
-const MIN_TOKEN_LENGTH = 16;
+const MIN_TOKEN_LENGTH = 22;
+const MIN_TOKEN_CLASSES = 2;
+const MIN_TOKEN_UNIQUE = 8;
 const SESSION_COOKIE = 'harrington_session';
 // Browsers cap a cookie's lifetime at 400 days; a tablet signs in once.
 const SESSION_MAX_AGE = 400 * 24 * 60 * 60;
@@ -1001,6 +1003,21 @@ function hostAllowed(req) {
 }
 
 const authEnabled = accessToken.length > 0;
+
+function accessTokenProblem(token) {
+  if (token.length < MIN_TOKEN_LENGTH) {
+    return `must be at least ${MIN_TOKEN_LENGTH} characters`;
+  }
+  if (!/^[\x21-\x7e]+$/.test(token)) {
+    return 'must use printable ASCII characters without spaces';
+  }
+  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((re) => re.test(token)).length;
+  if (classes < MIN_TOKEN_CLASSES || new Set(token).size < MIN_TOKEN_UNIQUE) {
+    return `is too predictable (mix at least ${MIN_TOKEN_CLASSES} character classes and ${MIN_TOKEN_UNIQUE} distinct characters)`;
+  }
+  return null;
+}
+
 // The cookie holds a value derived from the token, never the token itself, so
 // changing HARRINGTON_ACCESS_TOKEN signs every device out.
 const sessionValue = authEnabled
@@ -1067,14 +1084,94 @@ function sendUnauthorized(res) {
   sendHtml(res, 401, 'Sign in to Harrington', ['Open <a href="/login">/login</a> on this device to sign in.', ...SIGN_IN_HELP]);
 }
 
+// ---- /login throttling and failure logging (HAR-48) ----
+// Tracked per socket remoteAddress (normalised; never X-Forwarded-For, which
+// any client on the LAN can forge). Five wrong tries return 401; the fifth
+// starts an exponential cooldown (1s, 2s, 4s, 8s, 16s, 32s, capped at 60s)
+// during which /login answers 429 with Retry-After even if a request carries
+// the right token.
+const LOGIN_FREE_FAILURES = 5;
+const LOGIN_MAX_TRACKED_ADDRESSES = 1024;
+const LOGIN_BACKOFF_CAP_MS = 60_000;
+const LOGIN_STALE_MS = 15 * 60_000;
+const configuredBackoffMs = Number.parseInt(process.env.HARRINGTON_LOGIN_BACKOFF_BASE_MS || '1000', 10);
+const LOGIN_BACKOFF_BASE_MS = Number.isInteger(configuredBackoffMs) && configuredBackoffMs >= 10 && configuredBackoffMs <= LOGIN_BACKOFF_CAP_MS
+  ? configuredBackoffMs
+  : 1000;
+const loginFailures = new Map(); // address -> { failures, blockedUntil, lastSeenAt }
+
+function clientAddress(req) {
+  const raw = String(req.socket?.remoteAddress || '').trim().toLowerCase();
+  if (!raw) return 'unknown';
+  if (raw.startsWith('::ffff:')) {
+    const v4 = raw.slice('::ffff:'.length);
+    if (isIP(v4) === 4) return v4;
+  }
+  return isIP(raw) ? raw : 'unknown';
+}
+
+function loginBackoffMs(failures) {
+  if (failures < LOGIN_FREE_FAILURES) return 0;
+  const exponent = Math.min(16, failures - LOGIN_FREE_FAILURES);
+  return Math.min(LOGIN_BACKOFF_CAP_MS, LOGIN_BACKOFF_BASE_MS * (2 ** exponent));
+}
+
+function recordLoginEntry(address, entry, now) {
+  if (loginFailures.has(address)) {
+    loginFailures.delete(address);
+  } else if (loginFailures.size >= LOGIN_MAX_TRACKED_ADDRESSES) {
+    for (const [key, item] of loginFailures) {
+      if (now >= item.blockedUntil && now - item.lastSeenAt > LOGIN_STALE_MS) loginFailures.delete(key);
+    }
+    if (loginFailures.size >= LOGIN_MAX_TRACKED_ADDRESSES) {
+      let victim = null;
+      for (const [key, item] of loginFailures) {
+        if (now >= item.blockedUntil) { victim = key; break; }
+      }
+      loginFailures.delete(victim ?? loginFailures.keys().next().value);
+    }
+  }
+  loginFailures.set(address, entry);
+}
+
+function logLoginFailure(address, status, failures, retryAfter = 0) {
+  const detail = status === 429
+    ? `throttled (429, failures=${failures}, retryAfter=${retryAfter}s)`
+    : `unauthorised (401, failures=${failures})`;
+  console.warn(`[${new Date().toISOString()}] Sign-in refused for ${address}: ${detail}`);
+}
+
 function signIn(req, res, token) {
+  const now = Date.now();
+  const address = clientAddress(req);
+  const existing = loginFailures.get(address);
+  if (existing && now < existing.blockedUntil) {
+    const retryAfter = Math.max(1, Math.ceil((existing.blockedUntil - now) / 1000));
+    recordLoginEntry(address, { ...existing, lastSeenAt: now }, now);
+    logLoginFailure(address, 429, existing.failures, retryAfter);
+    const waitLabel = retryAfter === 1 ? '1 second' : `${retryAfter} seconds`;
+    sendHtml(res, 429, 'Too many sign-in attempts', [
+      `Wait ${waitLabel} before trying again from this device.`,
+      ...SIGN_IN_HELP,
+    ], { 'Retry-After': String(retryAfter) });
+    return;
+  }
   if (!safeEqual(token, accessToken)) {
+    const failures = (existing ? existing.failures : 0) + 1;
+    const backoff = loginBackoffMs(failures);
+    recordLoginEntry(address, {
+      failures,
+      blockedUntil: backoff > 0 ? now + backoff : 0,
+      lastSeenAt: now,
+    }, now);
+    logLoginFailure(address, 401, failures);
     sendHtml(res, 401, 'That token did not work', [
       'It does not match this Harrington server. Check it for typos, or ask whoever runs the host computer for the current token.',
       ...SIGN_IN_HELP,
     ]);
     return;
   }
+  loginFailures.delete(address);
   const attributes = [
     `${SESSION_COOKIE}=${sessionValue}`,
     'Path=/',
@@ -1374,8 +1471,13 @@ for (const [name, value] of hostSettings) {
     process.exit(1);
   }
 }
-if (authEnabled && accessToken.length < MIN_TOKEN_LENGTH) {
-  console.error(`HARRINGTON_ACCESS_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters; see docs/DEPLOYMENT.md`);
+const tokenProblem = authEnabled ? accessTokenProblem(accessToken) : null;
+if (tokenProblem) {
+  console.error(
+    `HARRINGTON_ACCESS_TOKEN ${tokenProblem}; generate one with `
+    + '`node -e "console.log(require(\'node:crypto\').randomBytes(24).toString(\'base64url\'))"` '
+    + 'or `openssl rand -hex 24` (see docs/DEPLOYMENT.md)',
+  );
   process.exit(1);
 }
 
