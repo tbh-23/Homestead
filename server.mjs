@@ -39,7 +39,9 @@ const publishedHost = (process.env.HARRINGTON_PUBLISHED_HOST || '').trim() || ho
 const accessToken = (process.env.HARRINGTON_ACCESS_TOKEN || '').trim();
 const extraAllowedHosts = (process.env.HARRINGTON_ALLOWED_HOSTS || '')
   .split(',').map((name) => name.trim().toLowerCase()).filter(Boolean);
-const MIN_TOKEN_LENGTH = 16;
+const MIN_TOKEN_LENGTH = 22;
+const MIN_TOKEN_CLASSES = 2;
+const MIN_TOKEN_UNIQUE = 8;
 const SESSION_COOKIE = 'harrington_session';
 // Browsers cap a cookie's lifetime at 400 days; a tablet signs in once.
 const SESSION_MAX_AGE = 400 * 24 * 60 * 60;
@@ -352,6 +354,36 @@ async function backupAgeDays() {
   return Math.max(0, Math.floor((Date.now() - newest) / (24 * 60 * 60 * 1000)));
 }
 
+// ---- Uploaded recordings (HAR-47) ----
+// Only recognised audio MIME essence types are stored or served inline; any
+// other upload or restored sidecar is downgraded to application/octet-stream
+// as an attachment, and every recording response carries a sandbox CSP so
+// opening /api/audio/<key> directly cannot execute script in Harrington's origin.
+const SAFE_AUDIO_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/wave',
+  'audio/x-wav',
+  'audio/aac',
+  'audio/x-m4a',
+  'audio/flac',
+]);
+
+function safeAudioContentType(raw) {
+  if (typeof raw !== 'string') return null;
+  const essence = raw.split(';', 1)[0].trim().toLowerCase();
+  return SAFE_AUDIO_TYPES.has(essence) ? essence : null;
+}
+
+function safeAudioAttachmentName(key) {
+  const base = String(key || '').split(/[\\/]/).pop() || '';
+  const stem = base.replace(/\.[^.]*$/, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'recording';
+  return `${stem}.bin`;
+}
+
 function keyPath(directory, key, extension) {
   const encoded = Buffer.from(key, 'utf8').toString('base64url');
   if (!encoded || encoded.length > 500) {
@@ -502,8 +534,8 @@ function accessTokenEnabled() {
 // forwarding headers is refused for the same reason, even when Harrington
 // does not know it is shared. Those headers are only ever a reason to refuse,
 // never to allow: any client can set them.
-// On an unshared server the Host header must name this computer too: a DNS
-// rebinding page reaches 127.0.0.1 as same-origin, but under its own name.
+// On an unshared server the Host header must name this computer too (not even
+// an extra name from HARRINGTON_ALLOWED_HOSTS or a non-loopback IP literal).
 const LOCAL_ONLY = 'AI provider settings can only be changed from a signed-in device once an access token is set, or, while Harrington is not shared with other devices, from the computer running it';
 const FORWARDING_HEADERS = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip'];
 function canChangeAiSettings(req) {
@@ -925,26 +957,67 @@ const hostIsLoopback = isLoopbackHost(publishedHost);
 // Shared: something other than this computer is meant to reach Harrington.
 const shared = !bindIsLoopback || !hostIsLoopback;
 
-// DNS rebinding: a web page on an attacker's domain can re-point that domain
-// at this server, and the browser then sends the attacker's name as Host. Once
-// Harrington is shared, it answers only to names the family uses. An IP
-// literal is always accepted: a rebinding attack never arrives as one.
+// DNS rebinding (HAR-46): a web page on an attacker's domain can re-point that
+// domain at this server (including 127.0.0.1), and the browser then sends the
+// attacker's name as Host. Harrington always answers only to names configured
+// for it, whatever the bind address. An IP literal is always accepted: a
+// rebinding attack never arrives as one.
 const allowedHosts = new Set(['localhost', publishedHost.toLowerCase(), host.toLowerCase(), ...extraAllowedHosts]);
 
+function validHostPort(digits) {
+  if (digits.length > 5) return false;
+  const parsed = Number.parseInt(digits, 10);
+  return parsed >= 1 && parsed <= 65535;
+}
+
 function hostHeaderName(req) {
-  const value = String(req.headers.host || '').trim().toLowerCase();
-  const bracketed = value.match(/^\[([^\]]+)\](?::\d+)?$/);
-  if (bracketed) return bracketed[1];
-  return value.replace(/:\d+$/, '').replace(/\.$/, '');
+  if (Array.isArray(req.rawHeaders)) {
+    let count = 0;
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      if (req.rawHeaders[i].toLowerCase() === 'host') count += 1;
+    }
+    if (count !== 1) return '';
+  }
+  if (typeof req.headers.host !== 'string') return '';
+  const value = req.headers.host.trim().toLowerCase();
+  if (!value || /\s/.test(value)) return '';
+  const bracketed = value.match(/^\[([^\]]+)\](?::(\d+))?$/);
+  if (bracketed) {
+    if (bracketed[2] !== undefined && !validHostPort(bracketed[2])) return '';
+    return isIP(bracketed[1]) === 6 ? bracketed[1] : '';
+  }
+  const portMatch = value.match(/^(.*?):(\d+)$/);
+  if (portMatch && !validHostPort(portMatch[2])) return '';
+  const hostPart = portMatch ? portMatch[1] : value;
+  if (!hostPart || hostPart.includes(':')) return '';
+  if (hostPart.endsWith('.')) {
+    const trimmed = hostPart.slice(0, -1);
+    return isIP(trimmed) !== 0 ? '' : trimmed;
+  }
+  return hostPart;
 }
 
 function hostAllowed(req) {
-  if (!shared) return true;
   const name = hostHeaderName(req);
-  return isIP(name) !== 0 || allowedHosts.has(name);
+  return Boolean(name) && (isIP(name) !== 0 || allowedHosts.has(name));
 }
 
 const authEnabled = accessToken.length > 0;
+
+function accessTokenProblem(token) {
+  if (token.length < MIN_TOKEN_LENGTH) {
+    return `must be at least ${MIN_TOKEN_LENGTH} characters`;
+  }
+  if (!/^[\x21-\x7e]+$/.test(token)) {
+    return 'must use printable ASCII characters without spaces';
+  }
+  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((re) => re.test(token)).length;
+  if (classes < MIN_TOKEN_CLASSES || new Set(token).size < MIN_TOKEN_UNIQUE) {
+    return `is too predictable (mix at least ${MIN_TOKEN_CLASSES} character classes and ${MIN_TOKEN_UNIQUE} distinct characters)`;
+  }
+  return null;
+}
+
 // The cookie holds a value derived from the token, never the token itself, so
 // changing HARRINGTON_ACCESS_TOKEN signs every device out.
 const sessionValue = authEnabled
@@ -1011,14 +1084,94 @@ function sendUnauthorized(res) {
   sendHtml(res, 401, 'Sign in to Harrington', ['Open <a href="/login">/login</a> on this device to sign in.', ...SIGN_IN_HELP]);
 }
 
+// ---- /login throttling and failure logging (HAR-48) ----
+// Tracked per socket remoteAddress (normalised; never X-Forwarded-For, which
+// any client on the LAN can forge). Five wrong tries return 401; the fifth
+// starts an exponential cooldown (1s, 2s, 4s, 8s, 16s, 32s, capped at 60s)
+// during which /login answers 429 with Retry-After even if a request carries
+// the right token.
+const LOGIN_FREE_FAILURES = 5;
+const LOGIN_MAX_TRACKED_ADDRESSES = 1024;
+const LOGIN_BACKOFF_CAP_MS = 60_000;
+const LOGIN_STALE_MS = 15 * 60_000;
+const configuredBackoffMs = Number.parseInt(process.env.HARRINGTON_LOGIN_BACKOFF_BASE_MS || '1000', 10);
+const LOGIN_BACKOFF_BASE_MS = Number.isInteger(configuredBackoffMs) && configuredBackoffMs >= 10 && configuredBackoffMs <= LOGIN_BACKOFF_CAP_MS
+  ? configuredBackoffMs
+  : 1000;
+const loginFailures = new Map(); // address -> { failures, blockedUntil, lastSeenAt }
+
+function clientAddress(req) {
+  const raw = String(req.socket?.remoteAddress || '').trim().toLowerCase();
+  if (!raw) return 'unknown';
+  if (raw.startsWith('::ffff:')) {
+    const v4 = raw.slice('::ffff:'.length);
+    if (isIP(v4) === 4) return v4;
+  }
+  return isIP(raw) ? raw : 'unknown';
+}
+
+function loginBackoffMs(failures) {
+  if (failures < LOGIN_FREE_FAILURES) return 0;
+  const exponent = Math.min(16, failures - LOGIN_FREE_FAILURES);
+  return Math.min(LOGIN_BACKOFF_CAP_MS, LOGIN_BACKOFF_BASE_MS * (2 ** exponent));
+}
+
+function recordLoginEntry(address, entry, now) {
+  if (loginFailures.has(address)) {
+    loginFailures.delete(address);
+  } else if (loginFailures.size >= LOGIN_MAX_TRACKED_ADDRESSES) {
+    for (const [key, item] of loginFailures) {
+      if (now >= item.blockedUntil && now - item.lastSeenAt > LOGIN_STALE_MS) loginFailures.delete(key);
+    }
+    if (loginFailures.size >= LOGIN_MAX_TRACKED_ADDRESSES) {
+      let victim = null;
+      for (const [key, item] of loginFailures) {
+        if (now >= item.blockedUntil) { victim = key; break; }
+      }
+      loginFailures.delete(victim ?? loginFailures.keys().next().value);
+    }
+  }
+  loginFailures.set(address, entry);
+}
+
+function logLoginFailure(address, status, failures, retryAfter = 0) {
+  const detail = status === 429
+    ? `throttled (429, failures=${failures}, retryAfter=${retryAfter}s)`
+    : `unauthorised (401, failures=${failures})`;
+  console.warn(`[${new Date().toISOString()}] Sign-in refused for ${address}: ${detail}`);
+}
+
 function signIn(req, res, token) {
+  const now = Date.now();
+  const address = clientAddress(req);
+  const existing = loginFailures.get(address);
+  if (existing && now < existing.blockedUntil) {
+    const retryAfter = Math.max(1, Math.ceil((existing.blockedUntil - now) / 1000));
+    recordLoginEntry(address, { ...existing, lastSeenAt: now }, now);
+    logLoginFailure(address, 429, existing.failures, retryAfter);
+    const waitLabel = retryAfter === 1 ? '1 second' : `${retryAfter} seconds`;
+    sendHtml(res, 429, 'Too many sign-in attempts', [
+      `Wait ${waitLabel} before trying again from this device.`,
+      ...SIGN_IN_HELP,
+    ], { 'Retry-After': String(retryAfter) });
+    return;
+  }
   if (!safeEqual(token, accessToken)) {
+    const failures = (existing ? existing.failures : 0) + 1;
+    const backoff = loginBackoffMs(failures);
+    recordLoginEntry(address, {
+      failures,
+      blockedUntil: backoff > 0 ? now + backoff : 0,
+      lastSeenAt: now,
+    }, now);
+    logLoginFailure(address, 401, failures);
     sendHtml(res, 401, 'That token did not work', [
       'It does not match this Harrington server. Check it for typos, or ask whoever runs the host computer for the current token.',
       ...SIGN_IN_HELP,
     ]);
     return;
   }
+  loginFailures.delete(address);
   const attributes = [
     `${SESSION_COOKIE}=${sessionValue}`,
     'Path=/',
@@ -1210,16 +1363,25 @@ async function handleApi(req, res, url) {
   if (audioKey !== null) {
     const path = keyPath(audioDir, audioKey, '.bin');
     const metaPath = keyPath(audioDir, audioKey, '.meta.json');
-    if (req.method === 'GET') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
       try {
-        const [details, metadata] = await Promise.all([stat(path), readJsonFile(metaPath, {})]);
+        const [details, metadata] = await Promise.all([
+          stat(path),
+          readJsonFile(metaPath, {}).catch(() => ({})),
+        ]);
+        if (!details.isFile()) throw Object.assign(new Error('Recording not found'), { code: 'ENOENT' });
+        const safeType = safeAudioContentType(metadata?.contentType);
         res.writeHead(200, {
           'Cache-Control': 'private, max-age=3600',
-          'Content-Type': metadata.contentType || 'application/octet-stream',
+          'Content-Type': safeType || 'application/octet-stream',
           'Content-Length': details.size,
+          'Content-Security-Policy': 'sandbox',
           'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          ...(safeType ? {} : { 'Content-Disposition': `attachment; filename="${safeAudioAttachmentName(audioKey)}"` }),
         });
-        streamFile(res, path);
+        if (req.method === 'HEAD') res.end();
+        else streamFile(res, path);
       } catch (error) {
         if (error.code === 'ENOENT') sendJson(res, 404, { error: 'Recording not found' });
         else throw error;
@@ -1228,10 +1390,11 @@ async function handleApi(req, res, url) {
     }
     if (req.method === 'PUT') {
       const body = await readBody(req, AUDIO_LIMIT);
+      const contentType = safeAudioContentType(req.headers['content-type']) || 'application/octet-stream';
       await mkdir(audioDir, { recursive: true });
       await Promise.all([
         atomicWrite(path, body),
-        atomicWrite(metaPath, `${JSON.stringify({ contentType: req.headers['content-type'] || 'application/octet-stream' })}\n`),
+        atomicWrite(metaPath, `${JSON.stringify({ contentType })}\n`),
       ]);
       send(res, 204);
       return true;
@@ -1308,8 +1471,13 @@ for (const [name, value] of hostSettings) {
     process.exit(1);
   }
 }
-if (authEnabled && accessToken.length < MIN_TOKEN_LENGTH) {
-  console.error(`HARRINGTON_ACCESS_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters; see docs/DEPLOYMENT.md`);
+const tokenProblem = authEnabled ? accessTokenProblem(accessToken) : null;
+if (tokenProblem) {
+  console.error(
+    `HARRINGTON_ACCESS_TOKEN ${tokenProblem}; generate one with `
+    + '`node -e "console.log(require(\'node:crypto\').randomBytes(24).toString(\'base64url\'))"` '
+    + 'or `openssl rand -hex 24` (see docs/DEPLOYMENT.md)',
+  );
   process.exit(1);
 }
 
@@ -1344,8 +1512,8 @@ server.listen(port, host, () => {
       ? `Published address ${publishedHost} is loopback: the app tells people it runs on this computer only.`
       : `Published address ${publishedHost}: other devices open Harrington there.`);
   }
+  console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
   if (shared) {
-    console.log(`Answering to host names: ${[...allowedHosts].join(', ')}, and any IP address (HARRINGTON_ALLOWED_HOSTS adds more).`);
     console.log('Other devices need HTTPS in front of Harrington for the microphone (docs/DEPLOYMENT.md).');
   }
   console.log(authEnabled

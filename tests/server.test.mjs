@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer, request as httpRequest } from 'node:http';
+import { connect as netConnect } from 'node:net';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -533,9 +534,114 @@ test('persists lesson cache entries and recordings', async () => {
   assert.equal(savedAudio.status, 204);
   const loadedAudio = await fetch(`${baseUrl}/api/audio/recording-1.webm`);
   assert.equal(loadedAudio.headers.get('content-type'), 'audio/webm');
+  assert.equal(loadedAudio.headers.get('content-security-policy'), 'sandbox');
+  assert.equal(loadedAudio.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(loadedAudio.headers.get('x-frame-options'), 'DENY');
+  assert.equal(loadedAudio.headers.get('content-disposition'), null);
   assert.deepEqual(new Uint8Array(await loadedAudio.arrayBuffer()), audio);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`, { method: 'DELETE' })).status, 204);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`)).status, 404);
+});
+
+test('hardens /api/audio/ uploads and legacy sidecars against stored script execution (HAR-47)', async () => {
+  const metaPath = (key) => join(dataDir, 'audio', `${Buffer.from(key, 'utf8').toString('base64url')}.meta.json`);
+  const binPath = (key) => join(dataDir, 'audio', `${Buffer.from(key, 'utf8').toString('base64url')}.bin`);
+  const scriptPayload = '<script>document.title="LEAK"</script>';
+
+  // Hostile Content-Types on PUT are normalised to application/octet-stream on disk
+  // and served back only as sandboxed attachments.
+  for (const [key, contentType, expectedDisposition] of [
+    ['evil', 'text/html', 'attachment; filename="evil.bin"'],
+    ['trap.html', 'text/html; charset=utf-8', 'attachment; filename="trap.bin"'],
+    ['vector.svg', 'image/svg+xml', 'attachment; filename="vector.bin"'],
+    ['script.js', 'application/javascript', 'attachment; filename="script.bin"'],
+    ['movie.webm', 'video/webm', 'attachment; filename="movie.bin"'],
+    ['odd"name.html', 'text/html', 'attachment; filename="odd-name.bin"'],
+  ]) {
+    const encoded = encodeURIComponent(key);
+    const put = await fetch(`${baseUrl}/api/audio/${encoded}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: scriptPayload,
+    });
+    assert.equal(put.status, 204, key);
+    assert.deepEqual(JSON.parse(await readFile(metaPath(key), 'utf8')), { contentType: 'application/octet-stream' });
+
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${encoded}`, { method });
+      assert.equal(res.status, 200, `${method} ${key}`);
+      assert.equal(res.headers.get('content-type'), 'application/octet-stream');
+      assert.equal(res.headers.get('content-disposition'), expectedDisposition);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+      if (method === 'GET') assert.equal(await res.text(), scriptPayload);
+    }
+    assert.equal((await fetch(`${baseUrl}/api/audio/${encoded}`, { method: 'DELETE' })).status, 204);
+  }
+
+  // Missing Content-Type on PUT also stores and serves as application/octet-stream.
+  assert.equal((await fetch(`${baseUrl}/api/audio/no-type`, { method: 'PUT', body: new Uint8Array([9, 8, 7]) })).status, 204);
+  const noType = await fetch(`${baseUrl}/api/audio/no-type`);
+  assert.equal(noType.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(noType.headers.get('content-disposition'), 'attachment; filename="no-type.bin"');
+  await fetch(`${baseUrl}/api/audio/no-type`, { method: 'DELETE' });
+
+  // A pre-existing or restored sidecar on disk with text/html, image/svg+xml,
+  // or corrupt JSON is still downgraded on GET and HEAD.
+  await mkdir(join(dataDir, 'audio'), { recursive: true });
+  for (const [key, rawMeta] of [
+    ['restored-html', '{"contentType":"text/html"}\n'],
+    ['restored-svg', '{"contentType":"image/svg+xml"}\n'],
+    ['restored-corrupt', '{not-json'],
+  ]) {
+    await writeFile(binPath(key), scriptPayload);
+    await writeFile(metaPath(key), rawMeta);
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${key}`, { method });
+      assert.equal(res.status, 200, `${method} ${key}`);
+      assert.equal(res.headers.get('content-type'), 'application/octet-stream');
+      assert.equal(res.headers.get('content-disposition'), `attachment; filename="${key}.bin"`);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    }
+    await fetch(`${baseUrl}/api/audio/${key}`, { method: 'DELETE' });
+  }
+
+  // Legitimate browser audio MIME types (including codec parameters) are stored
+  // normalised to their clean essence type and served inline with sandbox headers.
+  for (const [sent, expected] of [
+    ['audio/webm;codecs=opus', 'audio/webm'],
+    ['AUDIO/MP4; codecs="mp4a.40.2"', 'audio/mp4'],
+    ['audio/ogg; codecs=opus', 'audio/ogg'],
+    ['audio/mpeg', 'audio/mpeg'],
+    ['audio/wav', 'audio/wav'],
+    ['audio/wave', 'audio/wave'],
+    ['audio/x-wav', 'audio/x-wav'],
+    ['audio/aac', 'audio/aac'],
+    ['audio/x-m4a', 'audio/x-m4a'],
+    ['audio/flac', 'audio/flac'],
+  ]) {
+    const key = `good-${expected.slice('audio/'.length)}`;
+    const put = await fetch(`${baseUrl}/api/audio/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': sent },
+      body: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
+    });
+    assert.equal(put.status, 204, sent);
+    assert.deepEqual(JSON.parse(await readFile(metaPath(key), 'utf8')), { contentType: expected });
+    for (const method of ['GET', 'HEAD']) {
+      const res = await fetch(`${baseUrl}/api/audio/${key}`, { method });
+      assert.equal(res.status, 200, `${method} ${sent}`);
+      assert.equal(res.headers.get('content-type'), expected);
+      assert.equal(res.headers.get('content-disposition'), null);
+      assert.equal(res.headers.get('content-security-policy'), 'sandbox');
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    }
+    await fetch(`${baseUrl}/api/audio/${key}`, { method: 'DELETE' });
+  }
 });
 
 test('lists saved lesson keys and times by prefix, without content', async () => {
@@ -1624,19 +1730,26 @@ describe('AI provider settings from another device', { concurrency: false }, () 
       await withToken.stop();
     }
 
-    // DNS rebinding (THREAT-MODEL.md G1): an unshared server answers to any
-    // name, but a settings write under a name other than this computer's is
-    // refused, and the page says it is read-only there.
-    const rebound = await spawnHarrington();
+    // DNS rebinding (THREAT-MODEL.md G1, HAR-46): a foreign Host is refused
+    // with 421 before any route runs, and even an extra allowed name or a
+    // non-loopback IP literal in Host on an unshared server cannot change AI
+    // settings.
+    const rebound = await spawnHarrington({ HARRINGTON_ALLOWED_HOSTS: 'alias.home.arpa' });
     try {
       const port = new URL(rebound.url).port;
       const write = { baseUrl: 'http://attacker.test/v1', model: 'm' };
-      const refused = await sendWithHost(port, 'rebind.attacker.test', { body: write });
-      assert.equal(refused.status, 403);
-      assert.deepEqual(refused.json(), { error: LOCAL_ONLY });
-      assert.equal((await sendWithHost(port, `rebind.attacker.test:${port}`, { method: 'DELETE' })).status, 403);
-      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'POST', path: '/api/settings/ai/test' })).status, 403);
-      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'GET' })).json().canChange, false);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { body: write })).status, 421);
+      assert.equal((await sendWithHost(port, `rebind.attacker.test:${port}`, { method: 'DELETE' })).status, 421);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'POST', path: '/api/settings/ai/test' })).status, 421);
+      assert.equal((await sendWithHost(port, 'rebind.attacker.test', { method: 'GET' })).status, 421);
+      for (const nonLocalHost of [`alias.home.arpa:${port}`, `192.168.1.20:${port}`]) {
+        const refused = await sendWithHost(port, nonLocalHost, { body: write });
+        assert.equal(refused.status, 403, nonLocalHost);
+        assert.deepEqual(refused.json(), { error: LOCAL_ONLY });
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'DELETE' })).status, 403);
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'POST', path: '/api/settings/ai/test' })).status, 403);
+        assert.equal((await sendWithHost(port, nonLocalHost, { method: 'GET' })).json().canChange, false);
+      }
       await assert.rejects(stat(join(rebound.dir, 'secrets.json')), { code: 'ENOENT' });
       for (const name of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`]) {
         assert.equal((await sendWithHost(port, name, { body: write })).status, 200, name);
@@ -1893,18 +2006,32 @@ function getWithHost(port, hostHeader, path = '/api/health') {
   });
 }
 
-// The same for a settings write: method, JSON body and extra headers.
-function sendWithHost(port, hostHeader, { method = 'PUT', path = '/api/settings/ai', body = null } = {}) {
+// The same for a write or custom request: method, JSON body and extra headers.
+function sendWithHost(port, hostHeader, { method = 'PUT', path = '/api/settings/ai', body = null, headers: extra = {} } = {}) {
   return new Promise((resolve, reject) => {
-    const headers = { Host: hostHeader, ...(body ? { 'Content-Type': 'application/json' } : {}) };
+    const headers = { Host: hostHeader, ...(body ? { 'Content-Type': 'application/json' } : {}), ...extra };
     const req = httpRequest({ host: '127.0.0.1', port, path, method, headers }, (res) => {
       let text = '';
       res.setEncoding('utf8');
       res.on('data', (chunk) => { text += chunk; });
-      res.on('end', () => resolve({ status: res.statusCode, json: () => JSON.parse(text) }));
+      res.on('end', () => resolve({ status: res.statusCode, text: () => text, json: () => JSON.parse(text) }));
     });
     req.on('error', reject);
     req.end(body ? JSON.stringify(body) : undefined);
+  });
+}
+
+function rawHttpStatus(port, rawRequest) {
+  return new Promise((resolve, reject) => {
+    const socket = netConnect({ host: '127.0.0.1', port }, () => socket.end(rawRequest));
+    let response = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => { response += chunk; });
+    socket.on('end', () => {
+      const match = response.match(/^HTTP\/1\.[01] (\d{3})\b/);
+      resolve(match ? Number.parseInt(match[1], 10) : 0);
+    });
+    socket.on('error', reject);
   });
 }
 
@@ -1934,12 +2061,12 @@ describe('sign-in form and host names', { concurrency: false }, () => {
         assert.equal(failed.status, 401, `POST with ${JSON.stringify(token)} should fail`);
         assert.equal(failed.headers.get('set-cookie'), null);
       }
+      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
       const noBody = await fetch(`${guarded.url}/login`, { method: 'POST', redirect: 'manual' });
       assert.equal(noBody.status, 401);
       const oversized = await postLogin(guarded.url, `${TOKEN}${' '.repeat(5000)}`);
       assert.equal(oversized.status, 413);
       assert.equal(oversized.headers.get('set-cookie'), null);
-      assert.equal((await postLogin(guarded.url, ` ${TOKEN}\n`)).status, 303, 'a pasted token is trimmed');
 
       const ok = await postLogin(guarded.url, TOKEN);
       assert.equal(ok.status, 303);
@@ -1949,19 +2076,186 @@ describe('sign-in form and host names', { concurrency: false }, () => {
       assert.doesNotMatch(setCookie, /Secure/);
       assert.match((await postLogin(guarded.url, TOKEN, { 'X-Forwarded-Proto': 'https' })).headers.get('set-cookie'), /; Secure/);
       const cookie = setCookie.split(';')[0];
-      assert.equal((await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } })).status, 200);
+      assert.equal(await fetch(`${guarded.url}/api/state`, { headers: { Cookie: cookie } }).then((r) => r.status), 200);
     } finally {
       await guarded.stop();
     }
   });
 
-  test('a loopback server answers to any host name, as before', async () => {
+  test('refuses weak access tokens at startup without echoing the token (HAR-48)', async () => {
+    for (const weak of [
+      'short',
+      'Ab1!cD2@eF3#gH4$iJ5%k', // 21 chars (< 22)
+      'paste-your-token-here', // 21 chars
+      'a'.repeat(24), // single character class (lowercase)
+      'A'.repeat(24), // single character class (uppercase)
+      '1'.repeat(24), // single character class (digits)
+      '!'.repeat(24), // single character class (symbols)
+      'alllowercasewordsphrase', // 23 chars, single class
+      'a1'.repeat(12), // 24 chars, 2 classes, but only 2 distinct characters
+      'Aa1!'.repeat(6), // 24 chars, 4 classes, but only 4 distinct characters
+      'abc123def456 ghi789jkl012', // internal space
+    ]) {
+      const run = spawnSync(process.execPath, ['server.mjs'], {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          HARRINGTON_HOST: '127.0.0.1',
+          HARRINGTON_PORT: '0',
+          HARRINGTON_ACCESS_TOKEN: weak,
+          HARRINGTON_PUBLISHED_HOST: '',
+          HARRINGTON_ALLOWED_HOSTS: '',
+        },
+        encoding: 'utf8',
+      });
+      assert.equal(run.status, 1, `weak token ${JSON.stringify(weak)} should exit 1`);
+      assert.match(run.stderr, /HARRINGTON_ACCESS_TOKEN/);
+      assert.match(run.stderr, /docs\/DEPLOYMENT\.md/);
+      assert.equal(run.stderr.includes(weak), false, 'stderr must never print the token');
+    }
+
+    // Valid 22+ char base64url and hex tokens start cleanly.
+    for (const strong of ['Ab1_cD2-eF3_gH4-iJ5_kL', '0123456789abcdef0123456789abcdef']) {
+      const server = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: strong });
+      try {
+        assert.equal((await (await fetch(`${server.url}/api/health`)).json()).authEnabled, true);
+      } finally {
+        await server.stop();
+      }
+    }
+  });
+
+  test('throttles /login after 5 failures with exponential backoff and logs the source address only (HAR-48)', async () => {
+    // Default 1s base window: 5 wrong attempts return 401, the 6th immediately returns 429 with Retry-After: 1.
+    const defaultServer = await spawnHarrington({ HARRINGTON_ACCESS_TOKEN: TOKEN });
+    try {
+      // Plain GET /login renders the sign-in page without counting against the address.
+      for (let i = 0; i < 8; i += 1) {
+        assert.equal((await fetch(`${defaultServer.url}/login`)).status, 200);
+      }
+      assert.doesNotMatch(defaultServer.output(), /Sign-in refused/);
+
+      for (let i = 1; i <= 5; i += 1) {
+        const res = i % 2 === 1
+          ? await postLogin(defaultServer.url, `LEAK_MARKER_${i}\nFAKE_LOG_LINE`)
+          : await fetch(`${defaultServer.url}/login?token=${encodeURIComponent(`LEAK_MARKER_${i}\r\nFAKE_LOG_LINE`)}`, { redirect: 'manual' });
+        assert.equal(res.status, 401, `attempt ${i}`);
+      }
+
+      // Immediately locked out: even the right token and a spoofed X-Forwarded-For get 429.
+      const lockedRight = await postLogin(defaultServer.url, TOKEN, { 'X-Forwarded-For': '203.0.113.77' });
+      assert.equal(lockedRight.status, 429);
+      assert.equal(lockedRight.headers.get('retry-after'), '1');
+      assert.equal(lockedRight.headers.get('set-cookie'), null);
+      assert.match(await lockedRight.text(), /Too many sign-in attempts/);
+
+      const lockedLink = await fetch(`${defaultServer.url}/login?token=${encodeURIComponent(TOKEN)}`, {
+        redirect: 'manual',
+        headers: { 'X-Forwarded-For': '198.51.100.9' },
+      });
+      assert.equal(lockedLink.status, 429);
+      assert.equal(lockedLink.headers.get('retry-after'), '1');
+
+      // Plain GET /login (no token parameter) still shows the form during cooldown.
+      assert.equal((await fetch(`${defaultServer.url}/login`)).status, 200);
+
+      const log = await waitForOutput(defaultServer.output, /throttled \(429, failures=5/);
+      const failureLines = log.split('\n').filter((line) => line.includes('Sign-in refused'));
+      assert.equal(failureLines.length, 7, log);
+      for (let i = 1; i <= 5; i += 1) {
+        assert.match(failureLines[i - 1], new RegExp(`Sign-in refused for 127\\.0\\.0\\.1: unauthorised \\(401, failures=${i}\\)$`));
+      }
+      assert.match(failureLines[5], /Sign-in refused for 127\.0\.0\.1: throttled \(429, failures=5, retryAfter=1s\)$/);
+      assert.ok(!log.includes('LEAK_MARKER') && !log.includes('FAKE_LOG_LINE') && !log.includes(TOKEN), 'submitted and expected tokens are never logged');
+    } finally {
+      await defaultServer.stop();
+    }
+
+    // Fast base window (50 ms): verify cooldown expiry, exponential doubling, and counter reset on success.
+    const fastServer = await spawnHarrington({
+      HARRINGTON_ACCESS_TOKEN: TOKEN,
+      HARRINGTON_LOGIN_BACKOFF_BASE_MS: '50',
+    });
+    try {
+      for (let i = 0; i < 5; i += 1) {
+        assert.equal((await postLogin(fastServer.url, 'wrong-guess')).status, 401);
+      }
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'locked during first 50 ms window');
+
+      // Wait past the 50 ms window, then fail a 6th time -> doubles to 100 ms.
+      await new Promise((resolve) => setTimeout(resolve, 65));
+      assert.equal((await postLogin(fastServer.url, 'wrong-guess-6')).status, 401, '6th wrong guess after cooldown');
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'locked immediately in doubled 100 ms window');
+      await new Promise((resolve) => setTimeout(resolve, 55));
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 429, 'still locked halfway through doubled 100 ms window');
+
+      // Once the 100 ms window elapses, the right token succeeds and clears the failure counter.
+      await new Promise((resolve) => setTimeout(resolve, 65));
+      const ok = await postLogin(fastServer.url, TOKEN);
+      assert.equal(ok.status, 303);
+      assert.match(ok.headers.get('set-cookie') || '', /^harrington_session=/);
+
+      // Counter was cleared: one wrong attempt gets 401 and the next right attempt works straight away.
+      assert.equal((await postLogin(fastServer.url, 'wrong-after-reset')).status, 401);
+      assert.equal((await postLogin(fastServer.url, TOKEN)).status, 303);
+    } finally {
+      await fastServer.stop();
+    }
+  });
+
+  test('a loopback server refuses foreign and malformed Host headers with 421 or 400 (HAR-46)', async () => {
     const local = await spawnHarrington();
     try {
-      const response = await getWithHost(new URL(local.url).port, 'attacker.example');
-      assert.equal(response.status, 200);
+      const port = new URL(local.url).port;
+      for (const hostHeader of ['rebind.attacker.test', `rebind.attacker.test:${port}`, 'attacker.example']) {
+        for (const path of ['/', '/login', '/api/health', '/api/state']) {
+          const refused = await getWithHost(port, hostHeader, path);
+          assert.equal(refused.status, 421, `${hostHeader}${path} should be refused`);
+          assert.match(await refused.text(), /HARRINGTON_ALLOWED_HOSTS/);
+        }
+        const putRefused = await sendWithHost(port, hostHeader, {
+          method: 'PUT',
+          path: '/api/state',
+          headers: { 'If-Match': '"v0"', 'Sec-Fetch-Site': 'same-origin' },
+          body: { students: [{ id: 's1', name: 'Rebound', birthYear: 2018 }] },
+        });
+        assert.equal(putRefused.status, 421, `PUT /api/state with ${hostHeader}`);
+      }
+      await assert.rejects(stat(join(local.dir, 'family-state.json')), { code: 'ENOENT' });
+
+      for (const malformed of [
+        '::1', '[localhost]', `[localhost]:${port}`, `[127.0.0.1]:${port}`,
+        'localhost:0', 'localhost:99999', `127.0.0.1.:${port}`, `attacker.test@localhost:${port}`,
+      ]) {
+        const refused = await getWithHost(port, malformed, '/api/health');
+        assert.ok(refused.status === 400 || refused.status === 421, `Host ${JSON.stringify(malformed)} got ${refused.status}`);
+      }
+      for (const raw of [
+        'GET /api/health HTTP/1.0\r\n\r\n',
+        'GET /api/health HTTP/1.1\r\nConnection: close\r\n\r\n',
+        'GET /api/health HTTP/1.1\r\nHost: \r\nConnection: close\r\n\r\n',
+        `GET /api/health HTTP/1.1\r\nHost: localhost:${port}\r\nHost: rebind.attacker.test\r\nConnection: close\r\n\r\n`,
+      ]) {
+        const status = await rawHttpStatus(port, raw);
+        assert.ok(status === 400 || status === 421, `raw request got ${status}: ${JSON.stringify(raw)}`);
+      }
+
+      for (const allowed of [`localhost:${port}`, 'localhost', `LOCALHOST.:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`, '[::1]']) {
+        assert.equal((await getWithHost(port, allowed, '/api/health')).status, 200, `${allowed} should be allowed`);
+        assert.equal((await getWithHost(port, allowed, '/api/state')).status, 200, `${allowed} /api/state should be allowed`);
+      }
     } finally {
       await local.stop();
+    }
+
+    const withAllowed = await spawnHarrington({ HARRINGTON_ALLOWED_HOSTS: 'family-mac.local' });
+    try {
+      const port = new URL(withAllowed.url).port;
+      assert.equal((await getWithHost(port, `family-mac.local:${port}`, '/api/health')).status, 200);
+      assert.equal((await getWithHost(port, `family-mac.local:${port}`, '/api/state')).status, 200);
+      assert.equal((await getWithHost(port, 'rebind.attacker.test', '/api/state')).status, 421);
+    } finally {
+      await withAllowed.stop();
     }
   });
 

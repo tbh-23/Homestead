@@ -28,6 +28,14 @@ model and not repeated here.
 
 ### G1: the default loopback server answers any Host name (DNS rebinding)
 
+- **Status:** fixed (HAR-46). `hostAllowed()` now checks `Host` on every
+  request regardless of bind address, accepting only `localhost`, valid IPv4
+  and bracketed IPv6 literals, the bind and published names, and
+  `HARRINGTON_ALLOWED_HOSTS`, and refusing missing, duplicate or malformed
+  `Host` headers with `400` or `421`. A default loopback server now answers
+  `421` to `rebind.attacker.test` across `/`, `/login`, `/api/health` and
+  `/api/state` (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
+
 - **Code:** the Host allowlist applies only once the server is shared
   (`server.mjs:550`, `if (!shared) return true`). `tests/server.test.mjs` "a
   loopback server answers to any host name, as before" pins this behavior.
@@ -72,6 +80,18 @@ model and not repeated here.
 
 ### G2: an uploaded recording's Content-Type is served back inline
 
+- **Status:** fixed (HAR-47). `PUT /api/audio/<key>` now normalises the header
+  to an allowlist of clean `audio/*` essence types (`audio/webm`, `audio/ogg`,
+  `audio/mp4`, `audio/mpeg`, `audio/wav`, `audio/wave`, `audio/x-wav`,
+  `audio/aac`, `audio/x-m4a`, `audio/flac`), storing anything else as
+  `application/octet-stream`. `GET` and `HEAD /api/audio/<key>` re-check the
+  stored `.meta.json` sidecar (covering older folders and restored backups),
+  always send `Content-Security-Policy: sandbox`,
+  `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`, and force
+  `Content-Type: application/octet-stream` with
+  `Content-Disposition: attachment` whenever the stored type is outside the
+  allowlist (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
+
 - **Code:** `server.mjs:764` stores the request's `Content-Type`. `:748`
   serves it back with no `X-Frame-Options`, no CSP and no
   `Content-Disposition`.
@@ -102,6 +122,16 @@ model and not repeated here.
   3. Add a server test.
 
 ### G3: `/login` has no throttling, no failure log and no entropy floor
+
+- **Status:** fixed (HAR-48). Startup now refuses `HARRINGTON_ACCESS_TOKEN`
+  values shorter than 22 characters, containing spaces or non-printable
+  characters, using fewer than two character classes, or having fewer than 8
+  distinct characters. `/login` tracks failed attempts per normalised socket
+  `remoteAddress` (bounded to 1,024 entries, ignoring `X-Forwarded-For`),
+  enforcing exponential backoff after five failures (`1s` doubling up to `60s`,
+  answering `429` with `Retry-After`) and logging one warning line per `401` or
+  `429` with the source address and failure count, never the submitted or
+  expected token (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
 
 - **What happens:** any 16-character token is accepted, including a
   dictionary phrase. One device can make about 590 guesses a second, and
