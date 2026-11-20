@@ -428,17 +428,18 @@ function pickImportFile() {
     }
     const check = store.inspectImport(doc);
     if (!check.ok) { toast(check.error, 'error'); return; }
-    openImportPreview(doc, check.learners, check.colorsAdjusted);
+    openImportPreview(doc, check.learners, check.colorsAdjusted, check.picturesDropped);
   };
   input.click();
 }
 
-function openImportPreview(doc, learners, colorsAdjusted = 0) {
+function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 0) {
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
     ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner color'))} adjusted to the nearest palette color.</p>` : ''}
+    ${picturesDropped ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(picturesDropped, 'unknown picture item'))} from a newer version will be left out of saved books.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
       <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>

@@ -274,7 +274,7 @@ function levelsetProblem(levelset) {
   return null;
 }
 
-// The reading setup and book library (HAR-45, phonics/reading.js) per
+// The reading setup and book library (HAR-45, HAR-67, phonics/reading.js) per
 // learner: lists of short words, two preferences and saved books. Each saved
 // book is checked down to its page texts and picture items, the parts the
 // print view reads; a book is small (at most 16 pages).
@@ -284,39 +284,113 @@ const BOOK_TEXT_MAX = 300;
 // a file is refused rather than silently losing what normalize would drop.
 const GRAPHEME_MAX = 4;
 const WORD_MAX = 20;
+const SCENE_NUMS = ['x', 'y', 'scale', 'tilt'];
 const strings = (v, max) => Array.isArray(v) && v.length <= READING_LIST_MAX && v.every(x => typeof x === 'string' && x.length <= max);
-const sceneOk = (scene) => Array.isArray(scene) && scene.length <= 12
-  && scene.every(item => isObject(item) && isPictureKind(item.kind)
-    && ['x', 'y', 'scale', 'tilt'].every(k => absent(item[k]) || isFiniteNumber(item[k])));
-function savedBookProblem(entry) {
-  if (!isObject(entry) || typeof entry.id !== 'string' || !entry.id || entry.id.length > 80) return true;
-  if (!absent(entry.savedAt) && !isFiniteNumber(entry.savedAt)) return true;
-  const b = entry.book;
-  if (!isObject(b) || typeof b.title !== 'string' || b.title.length > BOOK_TEXT_MAX) return true;
-  if (!Array.isArray(b.pages) || !b.pages.length || b.pages.length > 16) return true;
-  if (!b.pages.every(p => isObject(p) && typeof p.text === 'string' && p.text.length <= BOOK_TEXT_MAX && (absent(p.scene) || sceneOk(p.scene)))) return true;
-  if (!absent(b.cover) && !sceneOk(b.cover)) return true;
-  for (const key of ['graphemes', 'focus']) if (!absent(b[key]) && !strings(b[key], GRAPHEME_MAX)) return true;
-  if (!absent(b.tricky) && !strings(b.tricky, WORD_MAX)) return true;
-  return false;
+
+// Plausible picture kind added by a newer Harrington: lowercase slug, not an
+// Object.prototype key, and not already in PICTURES. Import strips only well-
+// formed items with such a kind; validateDocument (and PUT /api/state) still
+// refuses every unknown kind.
+export const isFuturePictureKind = (kind) => typeof kind === 'string'
+  && /^[a-z][a-z0-9-]{0,29}$/.test(kind)
+  && !(kind in Object.prototype)
+  && !isPictureKind(kind);
+
+function sceneProblem(scene, where) {
+  if (!Array.isArray(scene)) return `has a ${where} scene that is not a list`;
+  if (scene.length > 12) return `has more than 12 items in its ${where} scene`;
+  for (const [i, item] of scene.entries()) {
+    if (!isObject(item)) return `has item ${i + 1} in its ${where} scene that is not an object`;
+    for (const k of SCENE_NUMS) {
+      if (!absent(item[k]) && !isFiniteNumber(item[k])) return `has a ${k} on item ${i + 1} in its ${where} scene that is not a number`;
+    }
+    if (!isPictureKind(item.kind)) {
+      const shown = typeof item.kind === 'string' && item.kind && item.kind.length <= LABEL_MAX ? `“${item.kind}”` : typeof item.kind;
+      return `uses an unknown picture (${shown}) in its ${where} scene`;
+    }
+  }
+  return null;
 }
-function readingProblem(reading) {
-  const shape = 'The file\'s reading setup is not in the expected shape.';
-  for (const value of Object.values(reading || {})) {
+
+function savedBookProblem(entry) {
+  if (!isObject(entry)) return 'is not an object';
+  if (typeof entry.id !== 'string' || !entry.id || entry.id.length > 80) return 'has an id that is not text of 1 to 80 characters';
+  if (!absent(entry.savedAt) && !isFiniteNumber(entry.savedAt)) return 'has a saved date that is not a number';
+  const b = entry.book;
+  if (!isObject(b)) return 'has no book object';
+  if (typeof b.title !== 'string' || !b.title.trim() || b.title.length > BOOK_TEXT_MAX) {
+    return `has a title that is not text of 1 to ${BOOK_TEXT_MAX} characters`;
+  }
+  if (!Array.isArray(b.pages) || !b.pages.length || b.pages.length > 16) return 'must have 1 to 16 pages';
+  for (const [i, p] of b.pages.entries()) {
+    if (!isObject(p)) return `has page ${i + 1} that is not an object`;
+    if (typeof p.text !== 'string' || p.text.length > BOOK_TEXT_MAX) {
+      return `has page ${i + 1} text that is not text of at most ${BOOK_TEXT_MAX} characters`;
+    }
+    if (!absent(p.scene)) {
+      const sp = sceneProblem(p.scene, `page ${i + 1}`);
+      if (sp) return sp;
+    }
+  }
+  if (!absent(b.cover)) {
+    const cp = sceneProblem(b.cover, 'cover');
+    if (cp) return cp;
+  }
+  for (const key of ['graphemes', 'focus']) {
+    if (!absent(b[key]) && !strings(b[key], GRAPHEME_MAX)) {
+      return `has ${key} that are not a list of sounds of at most ${GRAPHEME_MAX} characters`;
+    }
+  }
+  if (!absent(b.tricky) && !strings(b.tricky, WORD_MAX)) {
+    return `has tricky words that are not a list of words of at most ${WORD_MAX} characters`;
+  }
+  return null;
+}
+
+function readingProblem(doc) {
+  for (const [id, value] of Object.entries(doc.reading || {})) {
     if (absent(value)) continue;
-    if (!isObject(value)) return shape;
-    if (!absent(value.graphemes) && !strings(value.graphemes, GRAPHEME_MAX)) return shape;
-    if (!absent(value.tricky) && !strings(value.tricky, WORD_MAX)) return shape;
-    if (!absent(value.clusters) && typeof value.clusters !== 'boolean') return shape;
-    if (!absent(value.sequence) && typeof value.sequence !== 'string') return shape;
-    if (!absent(value.custom) && !(isObject(value.custom)
-      && (absent(value.custom.graphemes) || strings(value.custom.graphemes, GRAPHEME_MAX))
-      && (absent(value.custom.tricky) || strings(value.custom.tricky, WORD_MAX)))) return shape;
-    if (!absent(value.prefs) && !(isObject(value.prefs)
-      && (absent(value.prefs.nameOnCover) || typeof value.prefs.nameOnCover === 'boolean')
-      && (absent(value.prefs.layout) || ['booklet', 'flat'].includes(value.prefs.layout)))) return shape;
-    if (!absent(value.library) && !(Array.isArray(value.library) && value.library.length <= 100)) return shape;
-    if ((value.library || []).some(savedBookProblem)) return 'A saved book in the file\'s reading library is not in the expected shape.';
+    const owner = whose(doc, id);
+    if (!isObject(value)) return `${owner} reading setup is not in the expected shape.`;
+    if (!absent(value.graphemes) && !strings(value.graphemes, GRAPHEME_MAX)) {
+      return `${owner} reading graphemes are not a list of sounds of at most ${GRAPHEME_MAX} characters.`;
+    }
+    if (!absent(value.tricky) && !strings(value.tricky, WORD_MAX)) {
+      return `${owner} tricky words are not a list of words of at most ${WORD_MAX} characters.`;
+    }
+    if (!absent(value.clusters) && typeof value.clusters !== 'boolean') {
+      return `${owner} adjacent-consonants setting is not true or false.`;
+    }
+    if (!absent(value.sequence) && typeof value.sequence !== 'string') {
+      return `${owner} reading sequence is not text.`;
+    }
+    if (!absent(value.custom)) {
+      if (!isObject(value.custom)) return `${owner} custom sounds and words are not in the expected shape.`;
+      if (!absent(value.custom.graphemes) && !strings(value.custom.graphemes, GRAPHEME_MAX)) {
+        return `${owner} custom graphemes are not a list of sounds of at most ${GRAPHEME_MAX} characters.`;
+      }
+      if (!absent(value.custom.tricky) && !strings(value.custom.tricky, WORD_MAX)) {
+        return `${owner} custom tricky words are not a list of words of at most ${WORD_MAX} characters.`;
+      }
+    }
+    if (!absent(value.prefs)) {
+      if (!isObject(value.prefs)) return `${owner} reading print preferences are not in the expected shape.`;
+      if (!absent(value.prefs.nameOnCover) && typeof value.prefs.nameOnCover !== 'boolean') {
+        return `${owner} cover-name setting is not true or false.`;
+      }
+      if (!absent(value.prefs.layout) && !['booklet', 'flat'].includes(value.prefs.layout)) {
+        return `${owner} reading print layout is not "booklet" or "flat".`;
+      }
+    }
+    if (!absent(value.library) && !(Array.isArray(value.library) && value.library.length <= 100)) {
+      return `${owner} reading library is not a list of at most 100 books.`;
+    }
+    for (const [i, entry] of (value.library || []).entries()) {
+      const problem = savedBookProblem(entry);
+      if (problem) {
+        return `A saved book in the file's reading library${forLearner(doc, id)} (${itemLabel(entry?.book, 'library', i)}) ${problem}.`;
+      }
+    }
   }
   return null;
 }
@@ -388,8 +462,60 @@ export function validateDocument(doc) {
     || interestsProblem(doc.interests)
     || listsProblem(doc, 'requests', 'topic request', requestProblem)
     || levelsetProblem(doc.levelset)
-    || readingProblem(doc.reading)
+    || readingProblem(doc)
     || settingsProblem(doc.settings, doc.schemaVersion);
+}
+
+// Forward-compatible backup import (HAR-67): drops only well-formed scene items
+// whose kind looks like a picture added by a newer Harrington, leaving the rest
+// of the saved book intact and leaving malformed or prototype-named items in
+// place so validateDocument still refuses them.
+function stripScene(scene) {
+  if (!Array.isArray(scene) || scene.length > 12) return [scene, 0];
+  let lost = 0;
+  const kept = scene.filter((item) => {
+    const future = isObject(item)
+      && isFuturePictureKind(item.kind)
+      && SCENE_NUMS.every((k) => absent(item[k]) || isFiniteNumber(item[k]));
+    if (future) lost += 1;
+    return !future;
+  });
+  return lost ? [kept, lost] : [scene, 0];
+}
+
+export function stripUnknownPictures(doc) {
+  if (!isObject(doc) || !isObject(doc.reading)) return { doc, dropped: 0 };
+  let dropped = 0;
+  const reading = {};
+  for (const [id, value] of Object.entries(doc.reading)) {
+    if (!isObject(value) || !Array.isArray(value.library)) { reading[id] = value; continue; }
+    let libChanged = false;
+    const library = value.library.map((entry) => {
+      if (!isObject(entry) || !isObject(entry.book)) return entry;
+      const b = entry.book;
+      let bookChanged = false;
+      const [cover, coverLost] = stripScene(b.cover);
+      if (coverLost) { dropped += coverLost; bookChanged = true; }
+      let pages = b.pages;
+      if (Array.isArray(b.pages)) {
+        let pagesChanged = false;
+        const nextPages = b.pages.map((p) => {
+          if (!isObject(p)) return p;
+          const [scene, sceneLost] = stripScene(p.scene);
+          if (!sceneLost) return p;
+          dropped += sceneLost;
+          pagesChanged = true;
+          return { ...p, scene };
+        });
+        if (pagesChanged) { pages = nextPages; bookChanged = true; }
+      }
+      if (!bookChanged) return entry;
+      libChanged = true;
+      return { ...entry, book: { ...b, ...(coverLost ? { cover } : {}), ...(pages !== b.pages ? { pages } : {}) } };
+    });
+    reading[id] = libChanged ? { ...value, library } : value;
+  }
+  return dropped ? { doc: { ...doc, reading }, dropped } : { doc, dropped: 0 };
 }
 
 // ---- Repairs ----

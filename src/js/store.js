@@ -2,7 +2,7 @@
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, stripUnknownPictures, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData, isCurrentTopic } from './data.js';
@@ -767,17 +767,18 @@ export function inspectImport(doc) {
   // An older export is checked as it will be saved: migrated, so what the
   // format 3 repair fixes on the server (a long name, say) imports the same.
   if (schemaVersionOf(doc) < SCHEMA_VERSION) doc = migrateDocument(doc);
-  const problem = validateDocument(doc);
+  const { doc: stripped, dropped: picturesDropped } = stripUnknownPictures(doc);
+  const problem = validateDocument(stripped);
   if (problem) return fail(problem);
-  const learners = doc.students.map(s => ({
+  const learners = stripped.students.map(s => ({
     name: s.name,
-    topics: countOf(doc.progress?.[s.id]),
-    records: countOf(doc.records?.[s.id]),
-    tests: countOf(doc.tests?.[s.id]),
+    topics: countOf(stripped.progress?.[s.id]),
+    records: countOf(stripped.records?.[s.id]),
+    tests: countOf(stripped.tests?.[s.id]),
   }));
   // Learner colors that import will move to the nearest palette color.
-  const colorsAdjusted = doc.students.filter(s => paletteColor(s.color) !== s.color).length;
-  return { ok: true, learners, colorsAdjusted };
+  const colorsAdjusted = stripped.students.filter(s => paletteColor(s.color) !== s.color).length;
+  return { ok: true, learners, colorsAdjusted, picturesDropped };
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
@@ -787,7 +788,8 @@ export function importDocument(doc) {
   if (readOnly) return Promise.reject(new Error(readOnlyMessage()));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = migrateDocument(withValidActive(doc));
+  const { doc: stripped } = stripUnknownPictures(migrateDocument(withValidActive(doc)));
+  const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = stripped;
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
   // The topic finder's log: known learners only, newest first, capped.
   if (data.requests) data.requests = cleanRequestLogs(data.requests, data.students);

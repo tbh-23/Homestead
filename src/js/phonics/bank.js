@@ -1,13 +1,13 @@
-// The built-in book bank (HAR-45): short decodable books, at least one for
-// every stage of the school sequence. Each book declares the graphemes its
-// words use, the tricky words it uses, whether it needs adjacent consonants,
-// and the graphemes it practices (focus). Six story pages, one short sentence
-// a page; a page's picture is a scene (pictures.js), as data.
+// The built-in book bank (HAR-45, HAR-67): thirty-three short decodable books,
+// three for every stage of the school sequence. Each book declares the
+// graphemes its words use, the tricky words it uses, whether it needs adjacent
+// consonants, and the graphemes it practises (focus). Six story pages, one
+// short sentence a page; a page's picture is a scene (pictures.js), as data.
 //
 // tests/phonics.test.mjs checks every book against its own declared code with
 // checkBook, and that it declares exactly the graphemes its words use, so a
 // book here can never ask a child for a sound it does not say it needs.
-// Names are made up (Pat, Tim, Sam, Pip …); never a real child's.
+// Names are made up (Pat, Tass, Tim, Sam, Pip …); never a real child's.
 import { GROUND_Y } from './pictures.js';
 
 // Scene helpers: plain objects, so a book stays data.
@@ -15,6 +15,7 @@ const it = (kind, x, y, scale = 1, more = {}) => ({ kind, x, y, scale, ...more }
 const person = (x, more = {}, scale = 1) => it('person', x, GROUND_Y, scale, more);
 
 export const BANK = [
+  // ---- Set 1: s a t p --------------------------------------------------------
   {
     id: 'bank-tap-tap',
     title: 'Tap, tap',
@@ -33,6 +34,42 @@ export const BANK = [
     ],
   },
   {
+    id: 'bank-tass-sat',
+    title: 'Tass sat',
+    graphemes: ['t', 'a', 's', 'p'],
+    tricky: [],
+    clusters: false,
+    focus: ['s', 'a', 't', 'p'],
+    cover: [person(130, { pose: 'sit', hair: 'long' }, 1.05), person(280, { pose: 'sit', cap: true }, 1.05)],
+    pages: [
+      { text: 'Tass sat.', scene: [person(200, { pose: 'sit', hair: 'long' }, 1.1)] },
+      { text: 'Pat sat.', scene: [person(200, { pose: 'sit', cap: true }, 1.1)] },
+      { text: 'Tass taps a tap.', scene: [person(115, { arms: 'out', hair: 'long' }, 1.05), it('tap', 290, 105, 1, { drips: 1 })] },
+      { text: 'Pat taps a tap.', scene: [person(115, { arms: 'out', cap: true }, 1.05), it('tap', 290, 105, 1, { drips: 2 })] },
+      { text: 'Tap, tap, tap!', scene: [it('tap', 200, 110, 1.35, { drips: 3 })] },
+      { text: 'Tass sat. Pat sat.', scene: [person(125, { pose: 'sit', hair: 'long' }, 1.05), person(280, { pose: 'sit', cap: true }, 1.05)] },
+    ],
+  },
+  {
+    id: 'bank-pat-at-a-tap',
+    title: 'Pat at a tap',
+    graphemes: ['p', 'a', 't', 's'],
+    tricky: [],
+    clusters: false,
+    focus: ['p', 'a', 't', 's'],
+    cover: [person(120, { cap: true, arms: 'out' }, 1.05), it('tap', 290, 110, 1.05, { drips: 2 })],
+    pages: [
+      { text: 'A tap!', scene: [it('tap', 200, 120, 1.4)] },
+      { text: 'Pat taps.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), it('tap', 290, 110, 1)] },
+      { text: 'Tass taps.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('tap', 290, 110, 1, { drips: 1 })] },
+      { text: 'Pat taps. Tass taps.', scene: [person(95, { cap: true, arms: 'out' }, 0.95), person(205, { hair: 'long', arms: 'out' }, 0.95), it('tap', 330, 110, 0.85, { drips: 2 })] },
+      { text: 'Tap, tap!', scene: [it('tap', 200, 105, 1.35, { drips: 3 })] },
+      { text: 'Pat sat at a tap.', scene: [person(120, { cap: true, pose: 'sit' }, 1.05), it('tap', 290, 110, 1, { drips: 1 })] },
+    ],
+  },
+
+  // ---- Set 2: i m f c --------------------------------------------------------
+  {
     id: 'bank-pip-the-cat',
     title: 'Pip the cat',
     graphemes: ['p', 'i', 'c', 'a', 't', 's', 'm', 'f'],
@@ -43,7 +80,7 @@ export const BANK = [
     pages: [
       { text: 'Pip is a cat.', scene: [it('cat', 200, GROUND_Y, 1.4)] },
       { text: 'Pip sits.', scene: [it('mat', 200, GROUND_Y, 1.2), it('cat', 200, GROUND_Y - 16, 1.3)] },
-      { text: 'Tim pats Pip.', scene: [person(130, { pose: 'sit', arms: 'pat' }, 1.05), it('cat', 265, GROUND_Y, 0.9)] },
+      { text: 'Tim pats Pip.', scene: [person(115, { pose: 'sit', arms: 'pat' }, 1.05), it('cat', 285, GROUND_Y, 0.9)] },
       { text: 'Pip sips. Sip, sip, sip.', scene: [it('cat', 250, GROUND_Y, 1.25, { pose: 'sip' })] },
       { text: 'Pip is a fat cat!', scene: [it('cat', 190, GROUND_Y, 1.3, { pose: 'fat' })] },
       { text: 'Pip sits. Tim sits.', scene: [it('mat', 200, GROUND_Y, 1.7), person(110, { pose: 'sit' }, 1.05), it('cat', 280, GROUND_Y - 16, 1)] },
@@ -56,7 +93,7 @@ export const BANK = [
     tricky: ['the'],
     clusters: false,
     focus: ['m', 'f', 'c'],
-    cover: [it('cap', 110, 230, 1.4), it('cap', 290, 230, 1.4, { flip: true })],
+    cover: [it('cap', 78, 230, 1), it('cap', 322, 230, 1, { flip: true })],
     pages: [
       { text: 'A cap.', scene: [it('cap', 185, 240, 1.6)] },
       { text: 'Sam fits a cap.', scene: [person(200, { cap: true, arms: 'wave' }, 1.1)] },
@@ -66,6 +103,25 @@ export const BANK = [
       { text: 'Pip taps the map.', scene: [it('map', 160, 140, 1.15), it('cat', 330, GROUND_Y, 0.8)] },
     ],
   },
+  {
+    id: 'bank-mim-at-the-mat',
+    title: 'Mim at the mat',
+    graphemes: ['m', 'i', 'a', 't', 's', 'p', 'c', 'f'],
+    tricky: ['the', 'is'],
+    clusters: false,
+    focus: ['i', 'm', 'f', 'c'],
+    cover: [it('mat', 200, GROUND_Y, 1.3), it('cat', 200, GROUND_Y - 16, 1.15)],
+    pages: [
+      { text: 'It is a mat.', scene: [it('mat', 200, GROUND_Y, 1.4)] },
+      { text: 'Mim sits at the mat.', scene: [it('mat', 255, GROUND_Y, 1.1), person(105, { hair: 'long', pose: 'sit' }, 1.05)] },
+      { text: 'Pip the cat sits.', scene: [it('mat', 200, GROUND_Y, 1.3), it('cat', 200, GROUND_Y - 16, 1.2)] },
+      { text: 'The cat is fat.', scene: [it('mat', 200, GROUND_Y, 1.3), it('cat', 200, GROUND_Y - 16, 1.2, { pose: 'fat' })] },
+      { text: 'Mim pats the fat cat.', scene: [person(115, { hair: 'long', pose: 'sit', arms: 'pat' }, 1.05), it('cat', 285, GROUND_Y, 1, { pose: 'fat' })] },
+      { text: 'A cap fits Mim!', scene: [person(140, { hair: 'long', cap: true, arms: 'wave' }, 1.05), it('cat', 285, GROUND_Y, 0.95)] },
+    ],
+  },
+
+  // ---- Set 3: o d g l --------------------------------------------------------
   {
     id: 'bank-dot-the-dog',
     title: 'Dot the dog',
@@ -78,11 +134,47 @@ export const BANK = [
       { text: 'Dot is a dog.', scene: [it('dog', 210, GROUND_Y, 1.4)] },
       { text: 'Dot got a pot.', scene: [it('dog', 140, GROUND_Y, 1.1), it('pot', 300, GROUND_Y, 1)] },
       { text: 'Dot tips the pot.', scene: [it('pot', 262, GROUND_Y - 44, 1, { tilt: 72 }), it('dog', 150, GROUND_Y, 1.1)] },
-      { text: 'Tom pats Dot.', scene: [person(120, { pose: 'sit', arms: 'pat' }, 1.05), it('dog', 290, GROUND_Y, 0.95)] },
+      { text: 'Tom pats Dot.', scene: [person(115, { pose: 'sit', arms: 'pat' }, 1.05), it('dog', 290, GROUND_Y, 0.95)] },
       { text: 'Tom got a map.', scene: [person(110, { arms: 'out' }, 1.05), it('map', 290, 110, 0.75)] },
       { text: 'Dot! Sit, Dot!', scene: [person(100, { arms: 'out' }, 1), it('dog', 280, GROUND_Y, 1.1, { pose: 'sit' })] },
     ],
   },
+  {
+    id: 'bank-a-dog-at-the-log',
+    title: 'A dog at the log',
+    graphemes: ['a', 'd', 'o', 'g', 't', 'l', 'm', 'i', 's', 'p'],
+    tricky: ['the', 'go', 'to', 'is'],
+    clusters: false,
+    focus: ['o', 'd', 'g', 'l'],
+    cover: [it('log', 200, GROUND_Y, 1.3), it('dog', 200, GROUND_Y - 52, 0.9)],
+    pages: [
+      { text: 'Dom got a dog.', scene: [person(115, {}, 1.05), it('dog', 285, GROUND_Y, 1.05)] },
+      { text: 'The dog digs a lot.', scene: [it('dog', 210, GROUND_Y, 1.25, { pose: 'sit' })] },
+      { text: 'Go to the log, dog!', scene: [person(95, { arms: 'out' }, 1), it('log', 280, GROUND_Y, 1.15)] },
+      { text: 'The dog sits at the log.', scene: [it('log', 255, GROUND_Y, 1.15), it('dog', 115, GROUND_Y, 1, { pose: 'sit' })] },
+      { text: 'A pig is at the log!', scene: [it('log', 140, GROUND_Y, 1.05), it('pig', 295, GROUND_Y, 1)] },
+      { text: 'Dom pats the dog.', scene: [person(115, { pose: 'sit', arms: 'pat' }, 1.05), it('dog', 285, GROUND_Y, 0.95)] },
+    ],
+  },
+  {
+    id: 'bank-pam-got-a-pot',
+    title: 'Pam got a pot',
+    graphemes: ['p', 'a', 'm', 'g', 'o', 't', 'l', 'i', 'd', 'f', 's'],
+    tricky: ['the', 'go', 'into', 'no'],
+    clusters: false,
+    focus: ['o', 'd', 'g', 'l'],
+    cover: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('pot', 280, GROUND_Y, 1.15)],
+    pages: [
+      { text: 'Pam got a pot.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('pot', 280, GROUND_Y, 1.15)] },
+      { text: 'A lid fits the pot.', scene: [it('pot', 200, GROUND_Y, 1.4)] },
+      { text: 'Did Pip go into the pot?', scene: [it('cat', 125, GROUND_Y, 1.05), it('pot', 285, GROUND_Y, 1.15)] },
+      { text: 'No! The lid fits.', scene: [person(115, { hair: 'long', arms: 'wave' }, 1.05), it('pot', 285, GROUND_Y, 1.15)] },
+      { text: 'Pip sits at the pot.', scene: [it('pot', 140, GROUND_Y, 1.15), it('cat', 280, GROUND_Y, 1.1)] },
+      { text: 'Pam taps the lid. Pop!', scene: [person(115, { hair: 'long', arms: 'out' }, 1.05), it('pot', 280, GROUND_Y, 1.15)] },
+    ],
+  },
+
+  // ---- Set 4: h b n v --------------------------------------------------------
   {
     id: 'bank-the-big-van',
     title: 'The big van',
@@ -101,6 +193,42 @@ export const BANK = [
     ],
   },
   {
+    id: 'bank-viv-has-a-bag',
+    title: 'Viv has a bag',
+    graphemes: ['v', 'i', 'h', 'a', 's', 'b', 'g', 't', 'n', 'p', 'm'],
+    tricky: ['is', 'the', 'she'],
+    clusters: false,
+    focus: ['h', 'b', 'n', 'v'],
+    cover: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('bag', 280, GROUND_Y, 1.15)],
+    pages: [
+      { text: 'Viv has a big bag.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('bag', 280, GROUND_Y, 1.2)] },
+      { text: 'A hat is in the bag.', scene: [it('hat', 200, GROUND_Y - 62, 0.85), it('bag', 200, GROUND_Y, 1.3)] },
+      { text: 'A pan is in the bag.', scene: [it('pan', 200, GROUND_Y - 78, 0.85), it('bag', 200, GROUND_Y, 1.3)] },
+      { text: 'A map is in the bag.', scene: [it('map', 200, GROUND_Y - 108, 0.8), it('bag', 200, GROUND_Y, 1.3)] },
+      { text: 'Viv sits in the van.', scene: [it('van', 215, GROUND_Y, 1.2), person(360, { hair: 'long', arms: 'wave' }, 0.8)] },
+      { text: 'She has the bag in the van!', scene: [it('van', 175, GROUND_Y, 1.15), it('bag', 335, GROUND_Y, 0.95)] },
+    ],
+  },
+  {
+    id: 'bank-dan-has-a-hot-pan',
+    title: 'Dan has a hot pan',
+    graphemes: ['d', 'a', 'n', 'h', 's', 'o', 't', 'p', 'i', 'b', 'g', 'v', 'm', 'l'],
+    tricky: ['is', 'the', 'he'],
+    clusters: false,
+    focus: ['h', 'b', 'n', 'v'],
+    cover: [person(120, { arms: 'out' }, 1.05), it('pan', 280, GROUND_Y, 1.2)],
+    pages: [
+      { text: 'Dan is in the big van.', scene: [it('van', 215, GROUND_Y, 1.2), person(360, { arms: 'wave' }, 0.8)] },
+      { text: 'He has a pot.', scene: [person(120, { arms: 'out' }, 1.05), it('pot', 280, GROUND_Y, 1.1)] },
+      { text: 'He has a pan.', scene: [person(120, { arms: 'out' }, 1.05), it('pan', 280, GROUND_Y, 1.2)] },
+      { text: 'The pan is hot!', scene: [it('pan', 200, GROUND_Y, 1.45)] },
+      { text: 'Bob the dog naps on a mat.', scene: [it('mat', 200, GROUND_Y, 1.3), it('dog', 200, GROUND_Y - 16, 1.05, { pose: 'sit' })] },
+      { text: 'Dan sits on the log.', scene: [it('log', 200, GROUND_Y, 1.3), { ...person(200, { pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 52 }] },
+    ],
+  },
+
+  // ---- Set 5: e qu z r -------------------------------------------------------
+  {
     id: 'bank-the-red-hen',
     title: 'The red hen',
     graphemes: ['r', 'e', 'd', 'h', 'n', 'm', 'g', 'a', 's', 'o', 'b', 't', 'f', 'p'],
@@ -113,10 +241,46 @@ export const BANK = [
       { text: 'The hen is on the bed.', scene: [it('bed', 200, GROUND_Y, 1.2), it('hen', 230, GROUND_Y - 62, 0.8)] },
       { text: 'Get off the bed, hen!', scene: [it('bed', 240, GROUND_Y, 1), it('hen', 260, GROUND_Y - 52, 0.7), person(75, { hair: 'long', arms: 'wave' }, 0.95)] },
       { text: 'The hen is on the mat.', scene: [it('mat', 200, GROUND_Y, 1.3), it('hen', 200, GROUND_Y - 16, 1.2)] },
-      { text: 'Meg fed the hen.', scene: [person(120, { hair: 'long', arms: 'pat' }, 1.05), it('hen', 280, GROUND_Y, 1)] },
-      { text: 'Meg pets the hen.', scene: [person(130, { hair: 'long', pose: 'sit', arms: 'pat' }, 1.05), it('hen', 275, GROUND_Y, 0.95)] },
+      { text: 'Meg fed the hen.', scene: [person(115, { hair: 'long', arms: 'pat' }, 1.05), it('hen', 285, GROUND_Y, 1)] },
+      { text: 'Meg pets the hen.', scene: [person(115, { hair: 'long', pose: 'sit', arms: 'pat' }, 1.05), it('hen', 285, GROUND_Y, 0.95)] },
     ],
   },
+  {
+    id: 'bank-quin-did-the-quiz',
+    title: 'Quin did the quiz',
+    graphemes: ['qu', 'i', 'n', 'd', 'z', 'h', 'a', 's', 'b', 'g', 'r', 'o', 't', 'e', 'p'],
+    tricky: ['the', 'no'],
+    clusters: false,
+    focus: ['e', 'qu', 'z', 'r'],
+    cover: [person(120, {}, 1.05), it('quiz', 285, 150, 1)],
+    pages: [
+      { text: 'Quin has a big quiz.', scene: [person(120, { arms: 'out' }, 1.05), it('quiz', 280, 150, 1)] },
+      { text: 'Roz sits on the bed.', scene: [it('bed', 200, GROUND_Y, 1), { ...person(230, { hair: 'long', pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 52 }] },
+      { text: 'Did Quin quit? No!', scene: [person(200, { arms: 'both' }, 1.1)] },
+      { text: 'Quin did the quiz.', scene: [person(120, { arms: 'out' }, 1.05), it('quiz', 280, 150, 1)] },
+      { text: 'Quin got ten on the quiz!', scene: [person(120, { arms: 'wave' }, 1.05), it('quiz', 285, 150, 1.05)] },
+      { text: 'Roz zips a red bag.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('bag', 280, GROUND_Y, 1.1)] },
+    ],
+  },
+  {
+    id: 'bank-a-rat-in-a-net',
+    title: 'A rat in a net',
+    graphemes: ['a', 'r', 't', 'i', 'n', 'e', 'o', 'm', 'f', 'z', 'p', 's', 'b', 'g', 'h', 'd'],
+    tricky: ['the', 'into', 'was', 'no'],
+    clusters: false,
+    focus: ['e', 'z', 'r'],
+    cover: [it('rat', 145, GROUND_Y, 1.25), it('net', 285, GROUND_Y, 1.05)],
+    pages: [
+      { text: 'Ron met a fat rat.', scene: [person(115, { cap: true }, 1.05), it('rat', 285, GROUND_Y, 1.2)] },
+      { text: 'The rat ran on the mat.', scene: [it('mat', 200, GROUND_Y, 1.3), it('rat', 200, GROUND_Y - 16, 1.15)] },
+      { text: 'The rat zips into a bag!', scene: [it('rat', 200, GROUND_Y - 70, 0.95), it('bag', 200, GROUND_Y, 1.3)] },
+      { text: 'Ron has a big net.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), it('net', 280, GROUND_Y, 1.1)] },
+      { text: 'Was the rat in the net?', scene: [it('net', 200, GROUND_Y, 1.25)] },
+      { text: 'No! The rat naps on the bed.', scene: [it('bed', 200, GROUND_Y, 1.15), it('rat', 225, GROUND_Y - 60, 0.95)] },
+    ],
+  },
+
+  // ---- Set 6: u y j k --------------------------------------------------------
   {
     id: 'bank-kim-gets-the-bus',
     title: 'Kim gets the bus',
@@ -135,6 +299,42 @@ export const BANK = [
     ],
   },
   {
+    id: 'bank-ken-has-a-kit',
+    title: 'Ken has a kit',
+    graphemes: ['k', 'e', 'n', 'h', 'a', 's', 'i', 't', 'r', 'd', 'j', 'b', 'g', 'u', 'f', 'l', 'c', 'p', 'y', 'm', 'o'],
+    tricky: ['is', 'the'],
+    clusters: false,
+    focus: ['u', 'y', 'j', 'k'],
+    cover: [person(120, { cap: true, arms: 'out' }, 1.05), it('kit', 285, GROUND_Y, 1.15)],
+    pages: [
+      { text: 'Ken has a red kit.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), it('kit', 285, GROUND_Y, 1.15)] },
+      { text: 'Jen has a big jug.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('jug', 285, GROUND_Y, 1.1)] },
+      { text: 'Ken fills a cup.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), it('cup', 280, GROUND_Y, 1.2)] },
+      { text: 'Yum, yum! It is hot.', scene: [person(135, { cap: true, arms: 'out' }, 1.05), it('cup', 240, 152, 0.8)] },
+      { text: 'A yak sits in the sun.', scene: [it('sun', 320, 70, 0.8), it('yak', 180, GROUND_Y, 1.05)] },
+      { text: 'Yes! Ken fed the yak.', scene: [person(115, { cap: true, arms: 'pat' }, 1.05), it('yak', 285, GROUND_Y, 0.95)] },
+    ],
+  },
+  {
+    id: 'bank-gus-on-the-rug',
+    title: 'Gus on the rug',
+    graphemes: ['g', 'u', 's', 'o', 'n', 'r', 'h', 'a', 'b', 'i', 'j', 't', 'k', 'e', 'd', 'y', 'p'],
+    tricky: ['the'],
+    clusters: false,
+    focus: ['u', 'y', 'j', 'k'],
+    cover: [it('rug', 200, GROUND_Y, 1.3), { ...person(200, { pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 16 }],
+    pages: [
+      { text: 'Gus has a big rug.', scene: [person(115, {}, 1.05), it('rug', 280, GROUND_Y, 0.95)] },
+      { text: 'Gus jogs in the sun.', scene: [it('sun', 320, 70, 0.8), person(160, { arms: 'out' }, 1.05)] },
+      { text: 'Gus sits on the keg.', scene: [it('keg', 200, GROUND_Y, 1.15), { ...person(200, { pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 87 }] },
+      { text: 'The dog yaps at the yak.', scene: [it('dog', 120, GROUND_Y, 1), it('yak', 285, GROUND_Y, 0.95)] },
+      { text: 'Gus sits on the rug.', scene: [it('rug', 200, GROUND_Y, 1.3), { ...person(200, { pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 16 }] },
+      { text: 'Gus has a kip on the rug.', scene: [it('rug', 200, GROUND_Y, 1.35), { ...person(185, { pose: 'sit', seat: false }, 0.95), y: GROUND_Y - 16 }] },
+    ],
+  },
+
+  // ---- Set 7: x w ck sh ------------------------------------------------------
+  {
     id: 'bank-a-duck-on-a-ship',
     title: 'A duck on a ship',
     graphemes: ['a', 'd', 'u', 'ck', 'o', 'n', 'sh', 'i', 'p', 'j', 'h', 's', 'qu', 'w', 'e', 't', 'g', 'f'],
@@ -145,12 +345,48 @@ export const BANK = [
     pages: [
       { text: 'Jack has a ship.', scene: [person(70, { cap: true }, 0.9), it('ship', 255, 250, 1)] },
       { text: 'A duck is on the ship.', scene: [it('ship', 200, 250, 1.3), it('duck', 220, 140, 0.7)] },
-      { text: 'Quack! The duck is wet.', scene: [it('duck', 200, GROUND_Y, 1.5), it('cloud', 300, 70, 0.7)] },
+      { text: 'Quack! The duck is wet.', scene: [it('duck', 200, GROUND_Y, 1.5), it('rain', 300, 70, 0.7)] },
       { text: 'Jack gets a fish.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), it('fish', 260, 120, 0.8)] },
       { text: 'The duck pecks the fish.', scene: [it('duck', 140, GROUND_Y, 1.2), it('fish', 300, 225, 0.8)] },
       { text: 'Hush! The duck naps on the ship.', scene: [it('ship', 200, 250, 1.3), it('duck', 105, 196, 0.6)] },
     ],
   },
+  {
+    id: 'bank-a-fox-in-a-box',
+    title: 'A fox in a box',
+    graphemes: ['a', 'f', 'o', 'x', 'i', 'n', 'b', 'm', 'h', 's', 'g', 'r', 'e', 'd', 'ck', 'w', 't', 'l', 'u', 'sh', 'y', 'qu'],
+    tricky: ['is', 'the'],
+    clusters: false,
+    focus: ['x', 'w', 'ck', 'sh'],
+    cover: [it('box', 200, GROUND_Y, 1.3), it('fox', 200, GROUND_Y - 83, 0.8)],
+    pages: [
+      { text: 'Max has a big box.', scene: [person(115, { cap: true }, 1.05), it('box', 280, GROUND_Y, 1.15)] },
+      { text: 'A red sock is on a rock.', scene: [it('rock', 200, GROUND_Y, 1.2), it('sock', 200, GROUND_Y - 95, 0.8)] },
+      { text: 'A wet web is on the log.', scene: [it('log', 200, GROUND_Y, 1.25), it('web', 200, 155, 0.85)] },
+      { text: 'Hush! Is it a fox?', scene: [person(115, { cap: true, arms: 'out' }, 1.05), it('fox', 285, GROUND_Y, 1)] },
+      { text: 'Yes! A quick fox is on the box!', scene: [it('box', 200, GROUND_Y, 1.3), it('fox', 200, GROUND_Y - 83, 0.8)] },
+      { text: 'Max fixes the box.', scene: [person(115, { cap: true, arms: 'out' }, 1.05), it('box', 280, GROUND_Y, 1.15)] },
+    ],
+  },
+  {
+    id: 'bank-wes-washes-the-dish',
+    title: 'Wes washes the dish',
+    graphemes: ['w', 'e', 's', 'a', 'sh', 'd', 'i', 'h', 'o', 't', 'm', 'x', 'n', 'p', 'ck', 'k', 'c', 'u', 'b'],
+    tricky: ['the', 'is'],
+    clusters: false,
+    focus: ['x', 'w', 'ck', 'sh'],
+    cover: [person(120, { arms: 'out' }, 1.05), it('dish', 280, GROUND_Y, 1.15)],
+    pages: [
+      { text: 'Wes has a hot dish.', scene: [person(120, { arms: 'out' }, 1.05), it('dish', 280, GROUND_Y, 1.15)] },
+      { text: 'Wes mixes in a pot.', scene: [person(120, { arms: 'out' }, 1.05), it('pot', 280, GROUND_Y, 1.15)] },
+      { text: 'Tash packs a kit.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('kit', 285, GROUND_Y, 1.1)] },
+      { text: 'Wes washes the dish.', scene: [person(115, { arms: 'out' }, 1.05), it('tap', 285, 105, 0.95, { drips: 2 }), it('dish', 285, GROUND_Y, 1)] },
+      { text: 'Wes washes a cup.', scene: [person(120, { arms: 'out' }, 1.05), it('cup', 280, GROUND_Y, 1.2)] },
+      { text: 'The dish is in the box!', scene: [it('box', 200, GROUND_Y, 1.3), it('dish', 200, GROUND_Y - 84, 0.8)] },
+    ],
+  },
+
+  // ---- Set 8: ch th wh ng ----------------------------------------------------
   {
     id: 'bank-ring-the-bell',
     title: 'Ring the bell!',
@@ -169,6 +405,42 @@ export const BANK = [
     ],
   },
   {
+    id: 'bank-the-king-has-a-ring',
+    title: 'The king has a ring',
+    graphemes: ['k', 'i', 'ng', 'h', 'a', 's', 'r', 'wh', 'ch', 'b', 'o', 'x', 'n', 't', 'th', 'm', 'p', 'e', 'ck', 'u', 'g'],
+    tricky: ['the', 'is'],
+    clusters: false,
+    focus: ['ch', 'th', 'wh', 'ng'],
+    cover: [it('king', 135, GROUND_Y, 1), it('ring', 285, GROUND_Y, 1.2)],
+    pages: [
+      { text: 'The king has a ring.', scene: [it('king', 135, GROUND_Y, 1), it('ring', 285, GROUND_Y, 1.2)] },
+      { text: 'Which box has the ring?', scene: [it('box', 120, GROUND_Y, 0.9), it('box', 285, GROUND_Y, 1.15)] },
+      { text: 'Not that thin box!', scene: [it('king', 120, GROUND_Y, 0.95), it('box', 285, GROUND_Y, 0.85)] },
+      { text: 'A moth is on the bath.', scene: [it('bath', 200, GROUND_Y, 1), it('moth', 210, 145, 0.85)] },
+      { text: 'A chick pecks at the rug.', scene: [it('rug', 235, GROUND_Y, 1), it('chick', 135, GROUND_Y, 1.2)] },
+      { text: 'This box! The king sings!', scene: [it('king', 125, GROUND_Y, 1), it('box', 265, GROUND_Y, 1), it('ring', 265, GROUND_Y - 72, 0.75)] },
+    ],
+  },
+  {
+    id: 'bank-whit-in-the-bath',
+    title: 'Whit in the bath',
+    graphemes: ['wh', 'i', 't', 'n', 'b', 'a', 'th', 'r', 'u', 's', 'h', 'ng', 'p', 'o', 'd', 'ck', 'z', 'e', 'ch', 'w', 'l'],
+    tricky: ['the', 'to', 'is'],
+    clusters: false,
+    focus: ['ch', 'th', 'wh', 'ng'],
+    cover: [it('bath', 200, GROUND_Y, 1.05), it('duck', 200, GROUND_Y - 38, 0.75)],
+    pages: [
+      { text: 'Whit runs to the bath.', scene: [person(95, { cap: true, arms: 'out' }, 1), it('bath', 265, GROUND_Y, 0.95)] },
+      { text: 'Whit hangs up his hat.', scene: [person(120, { arms: 'out' }, 1.05), it('hat', 280, 140, 1)] },
+      { text: 'The bath is hot.', scene: [it('bath', 200, GROUND_Y, 1.15)] },
+      { text: 'A duck whizzes in the bath!', scene: [it('duck', 200, GROUND_Y - 36, 0.85), it('bath', 200, GROUND_Y, 1.1)] },
+      { text: 'Whit chats with Beth.', scene: [person(120, { cap: true, arms: 'out' }, 1.05), person(285, { hair: 'long', arms: 'wave' }, 1)] },
+      { text: 'Whit sang a long song.', scene: [person(200, { cap: true, arms: 'wave' }, 1.1)] },
+    ],
+  },
+
+  // ---- Set 9: adjacent consonants --------------------------------------------
+  {
     id: 'bank-fred-the-frog',
     title: 'Fred the frog',
     graphemes: ['f', 'r', 'e', 'd', 'o', 'g', 'a', 'c', 'n', 'j', 'u', 'm', 'p', 's', 'h', 't', 'ck', 'w', 'i', 'b'],
@@ -186,22 +458,94 @@ export const BANK = [
     ],
   },
   {
+    id: 'bank-fran-and-the-drum',
+    title: 'Fran and the drum',
+    graphemes: ['f', 'r', 'a', 'n', 'd', 'u', 'm', 'h', 's', 'b', 'i', 'g', 't', 'c', 'l', 'p', 'j', 'o', 'ng'],
+    tricky: ['the'],
+    clusters: true,
+    focus: [],
+    cover: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('drum', 280, GROUND_Y, 1.2)],
+    pages: [
+      { text: 'Fran has a big drum.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('drum', 280, GROUND_Y, 1.2)] },
+      { text: 'Stan claps his hands.', scene: [person(200, { cap: true, arms: 'both' }, 1.1)] },
+      { text: 'Tap, tap! Fran hits the drum.', scene: [person(115, { hair: 'long', arms: 'out' }, 1.05), it('drum', 280, GROUND_Y, 1.25)] },
+      { text: 'Stan grins and jumps.', scene: [person(200, { cap: true, arms: 'both' }, 1.1)] },
+      { text: 'The dog trots in and sits.', scene: [person(115, { hair: 'long' }, 1), it('dog', 285, GROUND_Y, 1.05, { pose: 'sit' })] },
+      { text: 'Fran and Stan sing a song!', scene: [person(120, { hair: 'long', arms: 'wave' }, 1.05), person(285, { cap: true, arms: 'wave' }, 1.05)] },
+    ],
+  },
+  {
+    id: 'bank-the-crab-on-the-rock',
+    title: 'The crab on the rock',
+    graphemes: ['c', 'r', 'a', 'b', 'o', 'n', 'ck', 's', 't', 'p', 'e', 'd', 'i', 'f', 'g', 'j', 'u', 'm', 'l', 'sh', 'w'],
+    tricky: ['the'],
+    clusters: true,
+    focus: [],
+    cover: [it('rock', 200, GROUND_Y, 1.25), it('crab', 200, GROUND_Y - 72, 1)],
+    pages: [
+      { text: 'Stan spots a red crab.', scene: [person(115, { cap: true }, 1.05), it('crab', 285, GROUND_Y, 1.15)] },
+      { text: 'The crab sits on a rock.', scene: [it('rock', 200, GROUND_Y, 1.25), it('crab', 200, GROUND_Y - 72, 1)] },
+      { text: 'Snip, snap! The crab nips.', scene: [it('crab', 200, GROUND_Y, 1.45)] },
+      { text: 'A frog jumps off a log.', scene: [it('log', 140, GROUND_Y, 1.1), it('frog', 285, 185, 1)] },
+      { text: 'A fish swims past the rock.', scene: [it('rock', 135, GROUND_Y, 1), it('fish', 290, 210, 1)] },
+      { text: 'Stan grins at the fast crab.', scene: [person(115, { cap: true, arms: 'wave' }, 1.05), it('crab', 285, GROUND_Y, 1.15)] },
+    ],
+  },
+
+  // ---- Set 10: ai ay ---------------------------------------------------------
+  {
     id: 'bank-rain-rain',
     title: 'Rain, rain',
     graphemes: ['r', 'ai', 'n', 'i', 't', 'a', 'w', 'e', 'd', 'ay', 'j', 's', 'b', 'u', 'o', 'p', 'g', 'y', 'c', 'l'],
     tricky: ['is', 'the'],
     clusters: true,
     focus: ['ai', 'ay'],
-    cover: [it('cloud', 200, 120, 1.4)],
+    cover: [it('rain', 200, 120, 1.4)],
     pages: [
-      { text: 'It is a wet day.', scene: [it('cloud', 200, 100, 1.3), it('tree', 330, GROUND_Y, 0.6)] },
-      { text: 'Rain, rain, rain!', scene: [it('cloud', 120, 90, 1), it('cloud', 290, 110, 1)] },
-      { text: 'Jay waits at the bus stop.', scene: [it('cloud', 250, 70, 0.9), person(140, { cap: true }, 1)] },
+      { text: 'It is a wet day.', scene: [it('rain', 200, 100, 1.3), it('tree', 330, GROUND_Y, 0.6)] },
+      { text: 'Rain, rain, rain!', scene: [it('rain', 120, 90, 1), it('rain', 290, 110, 1)] },
+      { text: 'Jay waits at the bus stop.', scene: [it('rain', 250, 70, 0.9), person(140, { cap: true }, 1)] },
       { text: 'Jay gets on the bus.', scene: [it('bus', 220, GROUND_Y, 1.3), person(355, { cap: true, arms: 'wave' }, 0.8)] },
       { text: 'The rain stops. Yay!', scene: [it('sun', 200, 120, 1.3)] },
       { text: 'Jay can play in the sun.', scene: [it('sun', 320, 70, 0.8), person(160, { cap: true, arms: 'wave' }, 1.05)] },
     ],
   },
+  {
+    id: 'bank-gail-on-the-train',
+    title: 'Gail on the train',
+    graphemes: ['g', 'ai', 'l', 'o', 'n', 't', 'r', 'w', 's', 'a', 'p', 'b', 'i', 'ay', 'e', 'k', 'h', 'c', 'u', 'd', 'ch', 'y', 'f'],
+    tricky: ['the', 'is', 'all'],
+    clusters: true,
+    focus: ['ai', 'ay'],
+    cover: [it('train', 200, GROUND_Y, 1.15)],
+    pages: [
+      { text: 'Gail waits at the train stop.', scene: [person(95, { hair: 'long' }, 1), it('train', 265, GROUND_Y, 0.95)] },
+      { text: 'The big train is on the way!', scene: [it('train', 200, GROUND_Y, 1.25)] },
+      { text: 'Gail gets on the train.', scene: [it('train', 205, GROUND_Y, 1.1), person(360, { hair: 'long', arms: 'wave' }, 0.8)] },
+      { text: 'Kay has a cup on a tray.', scene: [person(115, { hair: 'long' }, 1.05), it('tray', 280, GROUND_Y, 1.15), it('cup', 280, GROUND_Y - 18, 0.85)] },
+      { text: 'Gail and Kay chat all day.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), person(285, { hair: 'long', arms: 'wave' }, 1)] },
+      { text: 'Yay! It is a fun day.', scene: [it('sun', 320, 70, 0.8), person(160, { hair: 'long', arms: 'both' }, 1.05)] },
+    ],
+  },
+  {
+    id: 'bank-the-red-pail',
+    title: 'The red pail',
+    graphemes: ['r', 'e', 'd', 'p', 'ai', 'l', 'k', 'ay', 'h', 'a', 's', 'j', 'n', 't', 'b', 'i', 'g', 'o', 'x', 'c', 'w', 'sh', 'th'],
+    tricky: ['the', 'is', 'all'],
+    clusters: true,
+    focus: ['ai', 'ay'],
+    cover: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('pail', 280, GROUND_Y, 1.2)],
+    pages: [
+      { text: 'Kay has a red pail.', scene: [person(120, { hair: 'long', arms: 'out' }, 1.05), it('pail', 280, GROUND_Y, 1.2)] },
+      { text: 'Jay paints a big box.', scene: [person(115, { arms: 'out' }, 1.05), it('box', 280, GROUND_Y, 1.15)] },
+      { text: 'A crab is in the pail!', scene: [it('crab', 200, GROUND_Y - 64, 0.9), it('pail', 200, GROUND_Y, 1.3)] },
+      { text: 'The dog wags its tail.', scene: [it('dog', 200, GROUND_Y, 1.3)] },
+      { text: 'Jay sails a ship in the bath.', scene: [it('ship', 200, GROUND_Y - 56, 0.65), it('bath', 200, GROUND_Y, 1.05)] },
+      { text: 'Kay and Jay play all day!', scene: [person(120, { hair: 'long', arms: 'both' }, 1.05), person(285, { arms: 'wave' }, 1)] },
+    ],
+  },
+
+  // ---- Set 11: ee ea ---------------------------------------------------------
   {
     id: 'bank-a-bee-in-a-tree',
     title: 'A bee in a tree',
@@ -214,9 +558,43 @@ export const BANK = [
       { text: 'A bee sees a tree.', scene: [it('bee', 100, 90, 1), it('tree', 270, GROUND_Y, 1.1)] },
       { text: 'The bee is in the tree.', scene: [it('tree', 200, GROUND_Y, 1.3), it('bee', 215, 80, 0.7)] },
       { text: 'Buzz, buzz!', scene: [it('bee', 200, 140, 1.8)] },
-      { text: 'Dee sits on a seat.', scene: [person(200, { pose: 'sit', hair: 'long' }, 1.1)] },
+      { text: 'Dee sits on a seat.', scene: [it('seat', 200, GROUND_Y, 1), { ...person(200, { pose: 'sit', hair: 'long', seat: false }, 0.95), y: GROUND_Y - 62 }] },
       { text: 'The bee lands on Dee.', scene: [person(180, { pose: 'sit', hair: 'long' }, 1.1), it('bee', 190, 74, 0.6)] },
       { text: 'Dee keeps still. The bee flees!', scene: [person(140, { pose: 'sit', hair: 'long' }, 1.1), it('bee', 340, 60, 0.6)] },
+    ],
+  },
+  {
+    id: 'bank-bea-in-the-jeep',
+    title: 'Bea in the jeep',
+    graphemes: ['b', 'ea', 'i', 'n', 'j', 'ee', 'p', 'h', 'a', 's', 'l', 'o', 't', 'th', 'r', 'sh', 'g', 'f', 'd', 'w'],
+    tricky: ['the', 'they'],
+    clusters: true,
+    focus: ['ee', 'ea'],
+    cover: [it('jeep', 200, GROUND_Y, 1.2)],
+    pages: [
+      { text: 'Beep, beep! Bea has a jeep.', scene: [person(95, { hair: 'long', arms: 'wave' }, 1), it('jeep', 265, GROUND_Y, 1.05)] },
+      { text: 'Lee leaps onto the neat seat.', scene: [it('seat', 270, GROUND_Y, 1.05), person(115, { arms: 'both' }, 1.05)] },
+      { text: 'They see three sheep.', scene: [it('sheep', 95, GROUND_Y, 0.75), it('sheep', 205, GROUND_Y, 0.8), it('sheep', 320, GROUND_Y, 0.75)] },
+      { text: 'A sheep sleeps at the tree.', scene: [it('tree', 130, GROUND_Y, 1), it('sheep', 280, GROUND_Y, 0.95)] },
+      { text: 'A green leaf lands on the jeep.', scene: [it('jeep', 200, GROUND_Y, 1.15), it('leaf', 210, 125, 0.85)] },
+      { text: 'Bea and Lee grin with glee!', scene: [person(120, { hair: 'long', arms: 'both' }, 1.05), person(285, { arms: 'wave' }, 1.05)] },
+    ],
+  },
+  {
+    id: 'bank-the-seal-at-the-sea',
+    title: 'The seal at the sea',
+    graphemes: ['s', 'ea', 'l', 'a', 't', 'j', 'n', 'd', 'ee', 'p', 'k', 'c', 'f', 'i', 'sh', 'w', 'ch', 'ck', 'o', 'r', 'b'],
+    tricky: ['the', 'is', 'she'],
+    clusters: true,
+    focus: ['ee', 'ea'],
+    cover: [it('seal', 200, GROUND_Y, 1.35)],
+    pages: [
+      { text: 'Jean is at the deep sea.', scene: [person(115, { hair: 'long', arms: 'wave' }, 1.05), it('ship', 290, 245, 0.85)] },
+      { text: 'She sees a sleek seal.', scene: [person(115, { hair: 'long' }, 1.05), it('seal', 285, GROUND_Y, 1.15)] },
+      { text: 'The seal leaps and claps!', scene: [it('seal', 200, 210, 1.35)] },
+      { text: 'Jean feeds the seal a fish.', scene: [person(115, { hair: 'long', arms: 'out' }, 1.05), it('fish', 210, 155, 0.55), it('seal', 300, GROUND_Y, 1.1)] },
+      { text: 'A wee chick cheeps on a rock.', scene: [it('rock', 200, GROUND_Y, 1.2), it('chick', 200, GROUND_Y - 70, 1.05)] },
+      { text: 'The seal sleeps on the beach.', scene: [it('seal', 200, GROUND_Y, 1.35)] },
     ],
   },
 ];
