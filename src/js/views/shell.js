@@ -202,7 +202,7 @@ function openStudentMenu(navigate) {
   });
   body.querySelector('#add').onclick = () => { m.close(); openAddStudent(); };
   // Phones have no sidebar, so Export and Import live here below lg.
-  body.querySelector('#m-export').onclick = () => { m.close(); exportFamilyData(); };
+  body.querySelector('#m-export').onclick = () => { m.close(); openExportDialog(); };
   const phoneImport = body.querySelector('#m-import');
   phoneImport.onclick = () => { m.close(); pickImportFile(); };
   disableImportIfReadOnly(phoneImport);
@@ -371,7 +371,7 @@ function accountBox() {
       <a href="#settings" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>AI provider</a>
     </div>
   </div>`);
-  box.querySelector('#export').onclick = exportFamilyData;
+  box.querySelector('#export').onclick = openExportDialog;
   const importButton = box.querySelector('#import');
   importButton.onclick = pickImportFile;
   disableImportIfReadOnly(importButton);
@@ -401,6 +401,25 @@ export async function exportFamilyData() {
     console.warn('export failed', e);
     toast('Could not export family data', 'error');
   }
+}
+
+export function openExportDialog() {
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">Export family data?</h3>
+    <p class="text-sm text-ink-soft mb-2">This file holds learner names, parent notes, transcripts and the child-view PIN hash in plain text (not encrypted). Store it on an encrypted drive and never send it by email.</p>
+    <p class="text-xs text-ink-faint mb-5">Voice recordings are not part of this file (run <code>npm run backup</code> on the server to back up the whole data folder).</p>
+    <div class="flex gap-2 justify-end">
+      <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
+      <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Download export</button>
+    </div>
+  </div>`);
+  body.querySelector('#cancel').onclick = () => m.close();
+  body.querySelector('#confirm').onclick = async (e) => {
+    e.currentTarget.disabled = true;
+    await exportFamilyData();
+    m.close();
+  };
+  const m = openModal(body);
 }
 
 // A newer data format is open read-only: importing would overwrite it.

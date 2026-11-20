@@ -93,7 +93,11 @@ test('export and import from the learner menu on a phone (F6)', async ({ page, g
   await noHorizontalOverflow(page);
   await shot('learner-menu-family-data', { full: false });
 
-  const [download] = await Promise.all([page.waitForEvent('download'), menu.getByRole('button', { name: 'Export', exact: true }).click()]);
+  await menu.getByRole('button', { name: 'Export', exact: true }).click();
+  const exportDialog = modal(page);
+  await expect(exportDialog.getByRole('heading', { name: 'Export family data?' })).toBeVisible();
+  await expect(exportDialog).toContainText('in plain text (not encrypted)');
+  const [download] = await Promise.all([page.waitForEvent('download'), exportDialog.getByRole('button', { name: 'Download export' }).click()]);
   await expectToast(page, 'Family data exported');
   expect(download.suggestedFilename()).toMatch(/^harrington-family-\d{4}-\d{2}-\d{2}\.json$/);
   const file = Buffer.concat(await (await download.createReadStream()).toArray());

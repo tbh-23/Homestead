@@ -166,6 +166,15 @@ model and not repeated here.
      encrypted backup drive, don't email exports.
   2. A warning in the Export dialog.
   3. Later, optional passphrase encryption for exports and backups.
+- **Status:** fixed (HAR-49). Clicking **Export** in `src/js/views/shell.js`
+  now opens `openExportDialog()`, which warns that the export holds learner
+  names, parent notes, transcripts and the child-view PIN hash in plain text
+  and advises storing it on an encrypted drive and never emailing it before
+  downloading; `docs/DEPLOYMENT.md` covers host disk encryption (FileVault on
+  macOS, LUKS on Linux, encrypted shared folder on DSM), storing backup
+  archives and exported JSON files only on an encrypted drive, and never
+  emailing plaintext exports or backup archives. Passphrase encryption for
+  exports and backups remains future work.
 
 ## Minor
 
