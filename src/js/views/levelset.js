@@ -352,14 +352,13 @@ function queueCard(student, navigate) {
 function printSheet(student, lane, sheet, rows) {
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to print', 'error'); return; }
-  const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const body = rows.map(r => `<div class="row">
-    <div class="t">${e(r.name)} <span class="d">${e(r.domain)}</span></div>
-    ${r.prompts.map(p => `<div class="p">${e(p)}</div>`).join('')}
+    <div class="t">${esc(r.name)} <span class="d">${esc(r.domain)}</span></div>
+    ${r.prompts.map(p => `<div class="p">${esc(p)}</div>`).join('')}
     <div class="a"><span>&#9744; Yes</span><span>&#9744; Not yet</span><span>&#9744; Unsure</span></div>
   </div>`).join('');
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${e(ls.sheetTitle(sheet, lane.label))}</title>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(ls.sheetTitle(sheet, lane.label))}</title>
   <style>
     body{font-family:Georgia,'Times New Roman',serif;color:#2e2a24;max-width:780px;margin:0 auto;padding:40px 48px;line-height:1.45}
     h1{font-size:22px;margin:0 0 4px} .sub{color:#6b665d;font-size:13px;margin-bottom:18px}
@@ -369,8 +368,8 @@ function printSheet(student, lane, sheet, rows) {
     footer{margin-top:24px;font-size:11px;color:#6f665a}
     @media print{body{padding:0.5in}}
   </style></head><body>
-    <h1>${e(ls.sheetTitle(sheet, lane.label))}</h1>
-    <div class="sub">${e(student.name)} &middot; ${e(date)} &middot; Tick one box per topic, then enter the answers in the workbook.</div>
+    <h1>${esc(ls.sheetTitle(sheet, lane.label))}</h1>
+    <div class="sub">${esc(student.name)} &middot; ${esc(date)} &middot; Tick one box per topic, then enter the answers in the workbook.</div>
     ${body}
     <footer>Harrington level-set workbook. Topics from the Marble Skill Taxonomy (CC BY-SA 4.0).</footer>
     <script>window.onload=function(){setTimeout(function(){window.print()},350)}<\/script>

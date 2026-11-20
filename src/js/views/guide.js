@@ -1,4 +1,4 @@
-import { el, refreshIcons, openModal, toast } from '../ui.js';
+import { el, esc, refreshIcons, openModal, toast } from '../ui.js';
 import { authEnabled, isShared, storedOn, whereItRuns } from '../hosting.js';
 import { ACARA_NOTICE } from '../curriculum.js';
 
@@ -272,7 +272,6 @@ function downloadGuide() {
   const w = window.open('', '_blank');
   if (!w) { toast('Allow pop-ups to download the guide', 'error'); return; }
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const sections = guideSections().map(sec => `
     <section>
       <h2>${esc(sec.h)}</h2>

@@ -88,28 +88,66 @@ test('interface assets are served by Harrington instead of public CDNs', async (
   assert.match(index, /vendor\/lucide\.min\.js/);
 });
 
-test('views escape learner, record and taxonomy strings with the shared esc()', async () => {
+test('src/index.html loads only self-hosted scripts and has no iframe telemetry shim', async () => {
+  const index = await source('src/index.html');
+
+  assert.doesNotMatch(index, /postMessage|window\.parent/, 'src/index.html must not contain iframe postMessage telemetry');
+  assert.doesNotMatch(index, /\bwindow\.onerror\b|\bwindow\.onunhandledrejection\b/, 'src/index.html must not install global error telemetry');
+  const scriptOpens = index.match(/<script\b[^>]*>/gi) || [];
+  const scriptBlocks = index.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+  assert.equal(scriptOpens.length, scriptBlocks.length, 'every <script> tag in src/index.html must be closed');
+  assert.deepEqual(scriptBlocks, [
+    '<script src="vendor/lucide.min.js"></script>',
+    '<script type="module" src="js/app.js"></script>',
+  ]);
+});
+
+test('views and recorder escape learner, record and taxonomy strings with the shared esc()', async () => {
   const sharedImport = /import \{[^}]*\besc\b[^}]*\} from '\.\.\/ui\.js';/;
-  const localCopy = /function esc\(/;
+  const localCopy = /(?:function\s+esc\s*\(|(?:const|let|var)\s+esc\s*=)/;
+  // Sanity-check that localCopy catches both function declarations and arrow/variable copies.
+  for (const hit of ['function esc(s) {}', 'function esc (s) {}', 'const esc = (s) => s;', 'let esc = s => s;', 'var esc = fn;']) {
+    assert.match(hit, localCopy);
+  }
+  for (const safe of ["import { el, esc } from '../ui.js';", 'const escaped = esc(x);']) {
+    assert.doesNotMatch(safe, localCopy);
+  }
+
+  // Every view under src/js/views/.
   const views = [
-    'topic', 'calendar', 'graph',
-    'records', 'insights', 'recordings', 'masterytest', 'challenge', 'recall',
-    'notifications', 'shell', 'teachingguide',
+    'bookprint', 'books', 'calendar', 'challenge', 'childtopic', 'coverage',
+    'dashboard', 'find', 'graph', 'guide', 'guideprint', 'howitworks', 'insights',
+    'kidmode', 'learner', 'lesson', 'levelset', 'masterytest', 'notifications',
+    'observation', 'placement', 'practice', 'printables', 'recall',
+    'recordings', 'records', 'settings', 'shell', 'teachingguide', 'topic',
   ];
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
     assert.match(code, sharedImport, `views/${name}.js does not import esc from ../ui.js`);
     assert.doesNotMatch(code, localCopy, `views/${name}.js still defines a local esc copy`);
   }
+
+  const recorder = await source('src/js/recorder.js');
+  assert.match(recorder, /import \{[^}]*\besc\b[^}]*\} from '\.\/ui\.js';/, 'recorder.js does not import esc from ./ui.js');
+  assert.doesNotMatch(recorder, localCopy, 'recorder.js still defines a local esc copy');
 });
 
-test('esc() neutralizes markup and attribute breakouts', async () => {
+test('esc() and coverageClaimField() neutralise markup and attribute breakouts', async () => {
   const { esc } = await importSource('src/js/ui.js');
+  const { coverageClaimField } = await import('../src/js/recorder.js');
   assert.equal(esc('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
   assert.equal(esc(`"a" & 'b'`), '&quot;a&quot; &amp; &#39;b&#39;');
   assert.equal(esc(null), '');
   assert.equal(esc(undefined), '');
   assert.equal(esc(7), '7');
+
+  const claim = coverageClaimField([
+    { id: 't1', name: '<img src=x onerror=alert(1)>' },
+    { id: 't2', name: `"a" & 'b'` },
+  ]);
+  assert.doesNotMatch(claim, /<(?!\/?(?:label|input|span|strong)\b)/);
+  assert.match(claim, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(claim, /&quot;a&quot; &amp; &#39;b&#39;/);
 });
 
 // Markup templates in these files interpolate only escaped values (HAR-11):
@@ -120,7 +158,7 @@ test('esc() neutralizes markup and attribute breakouts', async () => {
 const MEADOW = ['meadowScene', 'petalRing', 'weekFlower', 'growthIcon', 'growthChip'];
 const ESCAPED_MARKUP = {
   'src/js/recorder.js': {
-    allowed: ['coverageClaimField(coverageTopics)'], // escapes each name; tested in daily.test.mjs
+    allowed: ['coverageClaimField(coverageTopics)'], // escapes each name; tested above and in daily.test.mjs
   },
   'src/js/views/records.js': {
     allowed: ["coverageNames(r).map(esc).join(' · ')", 'coverageClaimField(coverageTopics)'],
@@ -138,7 +176,13 @@ const ESCAPED_MARKUP = {
   },
   'src/js/views/insights.js': { helpers: [...MEADOW, 'statBox'] },
   'src/js/views/challenge.js': {},
+  'src/js/views/childtopic.js': { helpers: MEADOW },
   'src/js/views/coverage.js': {},
+  'src/js/views/howitworks.js': {
+    allowed: ['FRAME_HEIGHT[size] || FRAME_HEIGHT.normal'],
+  },
+  'src/js/views/observation.js': {},
+  'src/js/views/practice.js': {},
   'src/js/views/teachingguide.js': {
     // label() and list() escape their text; the icons and class strings are constants.
     helpers: ['label', 'list', 'steps', 'creditLink', 'activityBlock', 'checkBlock', 'reteach'],
@@ -170,9 +214,11 @@ test('the markup escaping check flags what it should and nothing else', () => {
   assert.deepEqual(flagged('el(`<i>${on ? `x ${t.subject}` : \'\'}</i>`)'), ['t.subject']);
   assert.deepEqual(flagged('el(`<i>${on ? t.subject : \'\'}</i>`)'), ["on ? t.subject : ''"]);
   assert.deepEqual(flagged('el(`<i>${xs.map(x => x.name).join(\'\')}</i>`)'), ['xs.map(x => x.name).join(\'\')']);
+  assert.deepEqual(flagged('el(`<i>${xs.map((x, i) => `<b data-i="${i}">${esc(x)}</b>`).join(\'\')}</i>`)'), ['i']);
   // Not flagged: escaped values, literal choices, non-markup templates.
   assert.deepEqual(flagged('el(`<span title="${esc(t.id)}">${esc(t.name)}</span>`)'), []);
   assert.deepEqual(flagged('el(`<i class="${on ? \'a\' : \'b\'}">${xs.map(x => `<b>${esc(x)}</b>`).join(\' \')}</i>`)'), []);
+  assert.deepEqual(flagged('el(`<i>${xs.map((x, i) => `<b data-i="${esc(i)}">${esc(x)}</b>`).join(\'\')}</i>`)'), []);
   assert.deepEqual(flagged('const key = `${t.subject}|${t.domain}`;'), []);
   assert.deepEqual(flagged('el(`<i>${a ? \'x\' : b ? \'y\' : `z`}${90}</i>`)'), []);
   assert.deepEqual(flagged('el(`<i>${a ? \'x\' : b ? y : \'z\'}</i>`)'), ["a ? 'x' : b ? y : 'z'"]);

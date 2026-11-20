@@ -228,7 +228,7 @@ function render(student) {
     const g = GROWTH[stage];
     bed.appendChild(el(`<div class="rounded-3xl p-3 pt-4 flex flex-col items-center text-center" style="background:${g.tint}">
       ${growthIcon(stage, 64)}
-      <span class="text-sm font-600 mt-1 leading-tight flex items-center gap-1"><i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i>${sub}</span>
+      <span class="text-sm font-600 mt-1 leading-tight flex items-center gap-1"><i data-lucide="${esc(meta.icon)}" class="w-3.5 h-3.5" style="color:${esc(meta.color)}"></i>${esc(sub)}</span>
       <span class="text-xs font-600 mt-0.5" style="color:${g.color}">${g.kid}</span>
     </div>`));
   });

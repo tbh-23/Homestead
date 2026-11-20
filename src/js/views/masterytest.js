@@ -42,7 +42,7 @@ export async function openMasteryTest(subject, section = null, topic = null) {
     <div class="sticky top-0 bg-paper-card border-b border-paper-line px-5 py-4 flex items-start gap-3 z-10">
       <span class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${meta.color}18"><i data-lucide="${icon}" class="w-5 h-5" style="color:${meta.color}"></i></span>
       <div class="flex-1 min-w-0">
-        <p class="text-xs text-ink-faint">${label}</p>
+        <p class="text-xs text-ink-faint">${esc(label)}</p>
         <h3 class="font-display text-lg font-600 leading-tight">${esc(title)}</h3>
       </div>
     </div>
@@ -91,14 +91,14 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
       ? `A short check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(topic.name)}</span>. Passing marks this topic mastered. Needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
       : isSection
       ? `A check that ${esc(student.name)} has mastered <span class="font-600 text-ink">${esc(section.domain)}</span> (age ${esc(section.age)}) before moving on. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`
-      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${subject}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>`}
+      : `A final check that ${esc(student.name)} has truly mastered <span class="font-600 text-ink">${esc(subject)}</span>. Passing needs <span class="font-600" style="color:${meta.color}">${PASS}% or more</span> correct.`}</p>`}
 
     ${isTopic && topic.description ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(topic.description)}</p></div>` : ''}
     ${isSection && section.summary ? `<div class="rounded-xl bg-brand-light/50 border border-brand/20 p-3 mb-4"><p class="text-xs text-ink-soft leading-relaxed">${esc(section.summary)}</p></div>` : ''}
 
     ${last && !childSafe ? `<div class="rounded-xl border ${last.passed ? 'border-brand/30 bg-brand-light/50' : 'border-[#f3b7a8] bg-[#fbecc4]'} p-3 mb-4 flex items-center gap-2.5 text-sm">
       <i data-lucide="${last.passed ? 'badge-check' : 'history'}" class="w-4 h-4 ${last.passed ? 'text-brand-dark' : 'text-[#a4473a]'}"></i>
-      <span>Last attempt: <strong>${last.pct}%</strong> ${last.passed ? '· Passed' : '· Not yet mastered'} <span class="text-ink-faint">on ${fmtDate(last.createdAt)}</span></span>
+      <span>Last attempt: <strong>${esc(last.pct)}%</strong> ${last.passed ? '· Passed' : '· Not yet mastered'} <span class="text-ink-faint">on ${fmtDate(last.createdAt)}</span></span>
     </div>` : ''}
 
     ${!isTopic && !childSafe ? `<div class="rounded-xl border border-paper-line bg-paper p-3.5 mb-4">
@@ -398,7 +398,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
     <p class="text-4xl font-700 font-display" style="color:${passed ? '#3f6b3b' : '#a4473a'}">${graded.pct}%</p>
     <p class="text-sm text-ink-soft mt-1">${formatCount(graded.earned)} of ${countLabel(graded.total, 'point')}</p>
     <p class="mt-3 font-600 text-lg">${passed
-      ? (isTopic ? `${esc(topic.name)} mastered!` : isSection ? `${esc(section.domain)} mastered!` : `${subject} mastered!`)
+      ? (isTopic ? `${esc(topic.name)} mastered!` : isSection ? `${esc(section.domain)} mastered!` : `${esc(subject)} mastered!`)
       : 'Not quite mastered yet'}</p>
     <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto leading-relaxed">${passed
       ? (isTopic
@@ -423,7 +423,7 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
     } else if (isSection) {
       // Section: unlocks the next section.
     } else {
-      const markAll = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="check-check" class="w-4 h-4"></i>Mark all ${subject} topics as mastered</button>`);
+      const markAll = el(`<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="check-check" class="w-4 h-4"></i>Mark all ${esc(subject)} topics as mastered</button>`);
       markAll.onclick = () => {
         const d = getData();
         store.setStatusBulk(student.id, (d.bySubject[subject] || []).map(t => t.id), 'mastered');
