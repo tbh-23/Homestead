@@ -177,7 +177,7 @@ export function classify(prompt) {
   if (prompt.includes('do-it-now instructions')) return 'activity';
   if (prompt.includes('Explain the topic')) return 'explain';
   if (prompt.includes('mini-quiz')) return 'quiz';
-  if (prompt.includes('Analyze the following discussion')) return 'discussion';
+  if (/Analy[sz]e the following discussion/.test(prompt)) return 'discussion';
   if (prompt.includes('progress review')) return 'review';
   return 'unknown';
 }

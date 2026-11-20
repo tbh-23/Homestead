@@ -44,7 +44,7 @@ test('topic page: every AI control becomes the chip, which links to the setup gu
   await expect(chips(section(page, 'AI teaching helper'))).toHaveCount(1);
   // Activity ideas keep their text; only the instructions need AI.
   const activities = section(page, 'Activities & games');
-  await expect(activities).toContainText('Kitchen counter math');
+  await expect(activities).toContainText('Kitchen counter maths');
   expect(await chips(activities).count()).toBeGreaterThanOrEqual(5);
 
   // Manual status still works without AI.
@@ -111,7 +111,7 @@ test('quest log, calendar, insights, records and recordings show chips', async (
 
   await nav(page, 'Records').click();
   const discussion = page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' });
-  await expect(discussion.getByRole('button', { name: 'Analyze & get advice' })).toHaveCount(0);
+  await expect(discussion.getByRole('button', { name: 'Analyse & get advice' })).toHaveCount(0);
   await expect(chips(discussion)).toHaveCount(1);
   // An analysis saved earlier still shows, without Regenerate.
   const recording = page.locator('div.rounded-2xl', { hasText: 'Bedtime counting' });

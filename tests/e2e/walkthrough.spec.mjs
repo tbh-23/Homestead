@@ -165,7 +165,7 @@ test.describe('parent', () => {
     const discussion = page.locator('div.rounded-2xl', { hasText: 'Talked about sharing' });
     await discussion.getByRole('checkbox', { name: 'Include my notes in this request' }).check();
     await beat(page, 500);
-    await discussion.getByRole('button', { name: 'Analyze & get advice' }).click();
+    await discussion.getByRole('button', { name: 'Analyse & get advice' }).click();
     await expect(modal(page).locator('.ai-prose')).toBeVisible();
     await beat(page, 1500);
     await modal(page).getByRole('button', { name: 'Save advice to records' }).click();

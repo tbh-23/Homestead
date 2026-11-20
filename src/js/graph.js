@@ -568,7 +568,7 @@ export function buildSkillTree(domainNode, data, { neighborCap = MAX_DOMAIN_GATE
       kind: 'hop',
       side: hop.side,
       label: hop.domain,
-      sublabel: hop.subject === domainNode.subject ? 'Neighbor domain' : hop.subject,
+      sublabel: hop.subject === domainNode.subject ? 'Neighbour domain' : hop.subject,
       hop,
     })),
   ];

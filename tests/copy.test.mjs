@@ -189,3 +189,29 @@ test('README and SECURITY keep the name-replacement limits ai.js actually has', 
   assert.equal(redactNames('J said hi', ['J']), 'J said hi');
   assert.equal(redactNames('小龍說', ['小龍']), '小龍說');
 });
+
+test('user-facing copy, AI prompts and contributor docs use Australian English (HAR-68)', async () => {
+  for (const path of ['src/js/ai.js', 'CONTRIBUTING.md', '.github/pull_request_template.md']) {
+    const text = await read(path);
+    assert.match(text, /Australian English/, `${path} must require Australian English`);
+    assert.doesNotMatch(text, /American English/, `${path} must not mention American English`);
+  }
+  const viewPaths = await files(new URL('src/js/views/', repoRoot), 'src/js/views/');
+  const targets = [
+    'src/js/ai.js',
+    'src/js/graph.js',
+    'src/js/resources.js',
+    ...viewPaths,
+    'src/docs/GUIDE.md',
+    'README.md',
+    'CONTRIBUTING.md',
+    'SECURITY.md',
+    'docs/DEPLOYMENT.md',
+  ];
+  const usSpelling = /\b(American English|colored|coloring|organi[z]e[ds]?|organizing|labeled|favorites?|favored|favoring|neighbors?|artifacts?|Analyze)\b/;
+  for (const path of targets) {
+    const text = await read(path);
+    const match = usSpelling.exec(text);
+    assert.equal(match, null, `${path} contains US spelling "${match?.[0]}"`);
+  }
+});

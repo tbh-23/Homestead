@@ -691,16 +691,18 @@ Each item closes a way family data could leak or be lost today.
    with the form, not the link.
 2. **Share it over HTTPS (option 1 or 2), never by opening a port on your
    router**, and never with `tailscale funnel`.
-3. **Encrypt the host computer's disk** (FileVault on a Mac, BitLocker or
-   Device Encryption on Windows, LUKS on Linux) and lock its screen. Family
-   data, recordings and backups are plain files on it.
-4. **Keep backups on an encrypted drive** and make the folder private to you:
-   `chmod 700 backups data/private` on Linux and macOS. A backup has every
-   note, transcript and recording.
-5. **Treat an export like the family diary.** It holds the children's names,
-   birth months, notes, transcripts and AI analyses. Do not email it or put
-   it in a shared cloud folder. If it has to travel, put it in an encrypted
-   archive and delete it once it has been imported.
+3. **Encrypt the host computer's disk** (FileVault on macOS, BitLocker or Device
+   Encryption on Windows, LUKS on Linux, or an encrypted shared folder on
+   Synology DSM) and lock its screen. Family data, recordings and backups are
+   plain files on it.
+4. **Store backup archives and exported JSON files only on an encrypted drive**
+   and make the folder private to you: `chmod 700 backups data/private` on
+   Linux and macOS. A backup has every note, transcript and recording.
+5. **Treat an export like the family diary.** It holds learner names, birth
+   months, notes, transcripts, AI analyses and the child-view PIN hash in plain
+   text. Never email plaintext exports or backup archives, and never put them in
+   a shared cloud folder. If an export or archive has to travel, put it in an
+   encrypted archive first and delete the plaintext file once imported.
 6. **Lock a child to the app, not just the child view.** The PIN keeps a
    child on the child screen, but a reload brings back the grown-up view, and
    the PIN is set by whoever presses **Grown-ups** first: set it yourself
@@ -714,7 +716,7 @@ Each item closes a way family data could leak or be lost today.
    recording.
 9. **With a cloud AI provider, assume it keeps what it is sent.** Learner
    names are replaced, but nicknames, other people's names, and everything
-   said in a recorded discussion you ask it to analyze are sent as they are,
+   said in a recorded discussion you ask it to analyse are sent as they are,
    and so are your notes when you tick "Include my notes". A provider on the
    host computer (Ollama) keeps all of it at home. Use `https://` for a
    provider on the internet. Plain `http://` is fine while it stays on your

@@ -200,7 +200,7 @@ function recordCard(r, student, d, navigate) {
         analyzeWrap.appendChild(analysisOptIn(redo, r, run));
       }
     } else {
-      const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+      const btn = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyse &amp; get advice</button>`);
       const gated = gateAi(btn, { capability: 'analysis' });
       analyzeWrap.appendChild(gated);
       if (gated === btn) analyzeWrap.appendChild(analysisOptIn(btn, r, run));
@@ -269,14 +269,14 @@ function openAnalysis(record, student, topic, includeNotes = false) {
 
   const hasContent = (record.transcript && record.transcript.trim()) || (includeNotes && record.note && record.note.trim());
   if (!hasContent) {
-    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or shared notes to analyze for this record. Record a discussion with the live transcript on, or tick “Include my notes in this request”, then try again.</p>`));
+    stage.appendChild(el(`<p class="text-sm text-ink-soft py-4">There's no transcript or shared notes to analyse for this record. Record a discussion with the live transcript on, or tick “Include my notes in this request”, then try again.</p>`));
     refreshIcons();
     return;
   }
 
   stage.appendChild(el(`<div class="text-center py-8">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-    <p class="text-sm font-600">Analyzing the discussion${includeNotes ? ' (notes included)' : ''}\u2026</p>
+    <p class="text-sm font-600">Analysing the discussion${includeNotes ? ' (notes included)' : ''}\u2026</p>
     <p class="text-xs text-ink-faint mt-1">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
   </div>`));
   refreshIcons();

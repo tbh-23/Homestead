@@ -31,7 +31,7 @@ function toHtml(text) {
   return html;
 }
 
-const US_SPELLING = ' Always write in American English spelling (e.g. "practice", "artifact", "color", "organize", "labeled", "favorite", "math", "recognize", "center").';
+const AU_SPELLING = ' Always write in Australian English spelling (e.g. "practise" for the verb and "practice" for the noun, "artefact", "colour", "organise", "labelled", "favourite", "maths", "recognise", "centre").';
 
 // Prompts describe a generic learner. Never interpolate a real child name.
 function promptLearnerLabel() {
@@ -108,7 +108,7 @@ Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. U
 // Every request names the capability it uses (see ai-capabilities.js); the
 // server refuses a capability the family has not switched on.
 async function ask(prompt, capability, { includeNotes = false } = {}) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], capability, { includeNotes });
+  const res = await backend.chat([{ role: 'user', content: prompt + AU_SPELLING }], capability, { includeNotes });
   const text = res?.content || res?.text || String(res);
   return toHtml(text);
 }
@@ -134,7 +134,7 @@ function parseJson(text) {
 }
 
 async function askJson(prompt, capability) {
-  const res = await backend.chat([{ role: 'user', content: prompt + US_SPELLING }], capability);
+  const res = await backend.chat([{ role: 'user', content: prompt + AU_SPELLING }], capability);
   const text = res?.content || res?.text || String(res);
   return parseJson(text);
 }
@@ -358,7 +358,7 @@ RULES FOR GOOD QUESTIONS (follow all):
 3. Questions must be self-contained and answerable from the text alone — no "read the passage above", no reference to pictures, manipulatives, or things not shown.
 4. Use simple, direct, ${known ? `age-${age}` : 'age-appropriate'} language. One idea per question. Avoid trick wording, double negatives, and "which of these is NOT" unless truly necessary.
 5. Options must be short, distinct, and not overlapping (e.g. don't include both "4" and "four"). Don't use "all of the above" / "none of the above".
-6. For math, keep numbers age-appropriate and put the FULL arithmetic in "verify" so it can be checked.
+6. For maths, keep numbers age-appropriate and put the FULL arithmetic in "verify" so it can be checked.
 
 ${digital
   ? `FORMAT: DIGITAL (answered on screen, auto-graded). Use ONLY "multiple_choice" questions with EXACTLY 4 options each (for genuinely true/false ideas you may use 2 options ["True","False"]). Do NOT use short_answer or task.`
@@ -398,7 +398,7 @@ RULES:
 2. ALL questions are "multiple_choice" with EXACTLY 4 short, distinct options and exactly one correct answer.
 3. Make 8 questions so a quick child can race the clock; order easiest-first.
 4. Self-contained wording, age-appropriate, no references to pictures.
-5. For math include the FULL arithmetic in "verify".
+5. For maths include the FULL arithmetic in "verify".
 
 Question shape:
 { "q": "...", "options": ["...","...","...","..."], "answer": <0-based index>, "answerText": "exact correct option text", "verify": "<arithmetic expression if numeric, else omit>", "points": 1 }
@@ -436,7 +436,7 @@ Use real, specific content — never placeholders.`;
   });
 }
 
-// Analyze a recorded/typed discussion and give the PARENT targeted coaching:
+// Analyse a recorded/typed discussion and give the PARENT targeted coaching:
 // how to approach the topic, why the child may be misunderstanding, and advice.
 // The transcript is redacted before the prompt is built; the parent's notes are
 // sent (also redacted) only when they tick "Include my notes in this request".
@@ -452,7 +452,7 @@ export function buildDiscussionPrompt({ age, topic, transcript, note, includeNot
   if (notes) parts.push(`The parent's written notes about the discussion:\n"""\n${notes}\n"""`);
   if (!parts.length) parts.push('The parent did not share a transcript or notes for this discussion.');
 
-  return `You are an expert learning coach helping a homeschooling parent. Analyze the following discussion between the parent and ${name} (${promptAge(age)}) and give the PARENT practical, encouraging guidance.
+  return `You are an expert learning coach helping a homeschooling parent. Analyse the following discussion between the parent and ${name} (${promptAge(age)}) and give the PARENT practical, encouraging guidance.
 
 ${topicLine}
 

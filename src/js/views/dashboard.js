@@ -196,7 +196,7 @@ export function renderDashboard(params, { navigate }) {
     <span class="w-12 h-12 rounded-full bg-rose flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5.5 h-5.5 text-rose-deep"></i></span>
     <span class="flex-1 min-w-0">
       <span class="block font-600">Recordings folder</span>
-      <span class="block text-sm text-ink-soft">${recCount ? `${esc(countLabel(recCount, 'voice recording'))}, grouped by section or topic` : 'Capture and revisit lesson conversations, organized by section or topic'}</span>
+      <span class="block text-sm text-ink-soft">${recCount ? `${esc(countLabel(recCount, 'voice recording'))}, grouped by section or topic` : 'Capture and revisit lesson conversations, organised by section or topic'}</span>
     </span>
     <span class="shrink-0 flex items-center gap-1 text-sm font-600 text-rose-deep">Open<i data-lucide="chevron-right" class="w-4 h-4"></i></span>
   </button>`);

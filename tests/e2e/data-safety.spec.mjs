@@ -10,6 +10,18 @@ const ROWAN = LEARNERS.rowan.id;
 const exportButton = (page) => page.getByRole('button', { name: 'Export', exact: true });
 const importButton = (page) => page.getByRole('button', { name: 'Import', exact: true });
 
+async function downloadExport(page, trigger) {
+  await trigger.click();
+  const dialog = modal(page);
+  await expect(dialog.getByRole('heading', { name: 'Export family data?' })).toBeVisible();
+  await expect(dialog).toContainText('in plain text (not encrypted)');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Download export' }).click(),
+  ]);
+  return download;
+}
+
 async function chooseImportFile(page, content) {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), importButton(page).click()]);
   await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.isBuffer(content) ? content : Buffer.from(content) });
@@ -18,7 +30,7 @@ async function chooseImportFile(page, content) {
 test('export downloads the whole family document as JSON, the PIN only as a salted hash (F16)', async ({ page, gotoApp, shot }) => {
   await gotoApp({ seed: { progress: { [TOPICS.oneToOne.id]: 'mastered' }, records: [{ type: 'observation', title: 'Counted to 12' }], extra: { settings: pinSettings({}, '2468', 'a'.repeat(32)) } } });
   await shot('sidebar-export-import', { locator: page.locator('aside') });
-  const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
+  const download = await downloadExport(page, exportButton(page));
   await expectToast(page, 'Family data exported');
   expect(download.suggestedFilename()).toBe('harrington-family-2026-10-07.json');
   const doc = JSON.parse(await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString('utf8')));
@@ -41,7 +53,7 @@ test('round trip: the exported file previews, cancel keeps the data, confirm res
   // The family to export: one learner with progress and a record.
   await gotoApp({ seed: { learners: ['sage'], active: 'sage', progress: { [TOPICS.oneToOne.id]: 'mastered', [TOPICS.howMany.id]: 'learning' }, records: [{ type: 'question', title: 'Exported question' }] } });
   await expect(page.getByRole('heading', { name: "Sage Example's Wednesday" })).toBeVisible();
-  const [download] = await Promise.all([page.waitForEvent('download'), exportButton(page).click()]);
+  const download = await downloadExport(page, exportButton(page));
   const file = Buffer.concat(await (await download.createReadStream()).toArray());
   const before = (await api.getState()).state;
 
@@ -233,7 +245,7 @@ test('at 390 px the refusal toast docks above the navigation and the learner she
   const exportButton = sheet.getByRole('button', { name: 'Export', exact: true });
   const exportBox = await exportButton.boundingBox();
   expect(exportBox.y + exportBox.height).toBeLessThanOrEqual(toastBox.y);
-  const [download] = await Promise.all([page.waitForEvent('download'), exportButton.click()]);
+  const download = await downloadExport(page, exportButton);
   expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
 });
 
@@ -288,7 +300,7 @@ test('read-only at 390 px: the banner leaves the top bar tappable; Export works,
   const menu = modal(page);
   await expect(menu.getByRole('button', { name: 'Export', exact: true })).toBeEnabled();
   await expect(menu.getByRole('button', { name: 'Import', exact: true })).toBeDisabled();
-  const [download] = await Promise.all([page.waitForEvent('download'), menu.getByRole('button', { name: 'Export', exact: true }).click()]);
+  const download = await downloadExport(page, menu.getByRole('button', { name: 'Export', exact: true }));
   expect(download.suggestedFilename()).toMatch(/^harrington-family-/);
   expect(writes).toEqual([]);
   expect(errors).toEqual([]);

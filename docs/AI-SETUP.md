@@ -331,7 +331,7 @@ endpoint reports them. The last two columns, **parent usability rating** and
   Are the parent tips about *this* topic?
 - **Correctness.** Any wrong fact, sum or spelling is a 1 or 2, however well
   written.
-- **American English** spelling throughout.
+- **Australian English** spelling throughout.
 
 ## When to widen capabilities
 

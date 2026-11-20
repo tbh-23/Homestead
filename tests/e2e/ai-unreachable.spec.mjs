@@ -49,7 +49,7 @@ test('full lesson: the unreachable message with Try again, not a spinner', async
 
 test('activity instructions: the same message, not the lesson\'s wording (F10, fixed by HAR-13)', async ({ page, gotoApp }) => {
   await gotoApp({ seed: {}, hash: `topic/${ONE.id}` });
-  await section(page, 'Activities & games').getByRole('button', { name: /Kitchen counter math/ }).click();
+  await section(page, 'Activities & games').getByRole('button', { name: /Kitchen counter maths/ }).click();
   await expect(modal(page)).toContainText(UNREACHABLE);
   await expect(modal(page)).not.toContainText(/Couldn.t create the lesson/);
   await expect(modal(page).getByRole('button', { name: 'Try again' })).toBeVisible();

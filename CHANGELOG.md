@@ -7,6 +7,19 @@ tagged a release yet; everything below is on `main`.
 ## [Unreleased]
 
 ### Added
+- Expanded the decodable book bank, picture library, import validation and CLI (`tools/decodable-books/make-books.mjs`) for generated phonics books (HAR-67, HAR-45).
+- Plaintext export warning dialog (`openExportDialog()` in `src/js/views/shell.js`) advising families to store exported JSON files on an encrypted drive and never email them, alongside updated disk and backup encryption guidance in `docs/DEPLOYMENT.md` (G4, HAR-49).
+
+### Changed
+- Switched user-facing copy, AI spelling instructions, prompts and contributor documentation to Australian English, with a regression guard in `tests/copy.test.mjs` (HAR-68).
+
+### Security
+- Removed the unused upstream preview telemetry shim from `src/index.html` and tightened `esc()` HTML-escaping guards across all views (HAR-11).
+- Enforced the `Host` allowlist on loopback bindings too, rejecting missing, duplicate or malformed `Host` headers (G1, HAR-46).
+- Normalised `/api/audio/` uploads and `.meta.json` sidecars to an explicit `audio/*` allowlist, falling back to `application/octet-stream` with `Content-Security-Policy: sandbox`, `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` (G2, HAR-47).
+- Raised the `HARRINGTON_ACCESS_TOKEN` startup entropy floor (22+ printable ASCII characters, mixed classes, 8+ distinct characters), throttled repeated `/login` failures per socket address with exponential backoff (`429 Retry-After`) and logged failures without tokens (G3, HAR-48).
+
+### Added (earlier)
 - Decodable books (HAR-45), with no AI provider. A learner's **Reading**
   section (sidebar **Reading & books**, or **Reading** in the learner
   selector) holds their known code: the sounds of the school's sequence they
@@ -19,7 +32,7 @@ tagged a release yet; everything below is on `main`.
   (sentence frames from a word bank, every word checked, deterministic per
   Shuffle) and a per-learner library. Books print flat (A5) or as an A4
   booklet in imposition order, in Andika (SIL OFL, bundled) with black
-  outline pictures to color in; the learner's name goes on the cover only
+  outline pictures to colour in; the learner's name goes on the cover only
   when the preference is on. Stored per learner under `reading` in the family
   document (no format change). Shared modules in `src/js/phonics/`. The
   checker reads doubled consonants (ss ff ll zz tt pp mm bb dd gg nn rr) as
