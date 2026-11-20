@@ -130,7 +130,7 @@ function renderAnalysis(container, r, student, topic) {
       container.appendChild(analysisOptIn(redo, r, run));
     }
   } else {
-    const analyze = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyze &amp; get advice</button>`);
+    const analyze = el(`<button class="flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand-dark/80"><i data-lucide="sparkles" class="w-4 h-4"></i>Analyse &amp; get advice</button>`);
     const gated = gateAi(analyze, { capability: 'analysis' });
     container.appendChild(gated);
     if (gated === analyze) container.appendChild(analysisOptIn(analyze, r, run));
@@ -172,7 +172,7 @@ export function analysisOptIn(btn, r, run) {
     btn.disabled = !ok;
     btn.classList.toggle('opacity-50', !ok);
     btn.classList.toggle('cursor-not-allowed', !ok);
-    btn.title = ok ? '' : hasNote ? 'Tick “Include my notes” to analyze your notes' : 'Add a transcript or notes to analyze';
+    btn.title = ok ? '' : hasNote ? 'Tick “Include my notes” to analyse your notes' : 'Add a transcript or notes to analyse';
     hint.textContent = ok ? '' : btn.title + '.';
     hint.hidden = ok;
   };
@@ -199,8 +199,8 @@ export function regenerateButton() {
 
 function runAnalysis(container, r, student, topic, includeNotes = false) {
   const hasContent = (r.transcript && r.transcript.trim()) || (includeNotes && r.note && r.note.trim());
-  if (!hasContent) { toast('No transcript or shared notes to analyze', 'error'); return; }
-  container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analyzing${includeNotes ? ' (notes included)' : ''}…</div>`;
+  if (!hasContent) { toast('No transcript or shared notes to analyse', 'error'); return; }
+  container.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-1"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Analysing${includeNotes ? ' (notes included)' : ''}…</div>`;
   aiDiscussionAnalysis({
     age: store.studentAge(student), topic: topic || null,
     transcript: r.transcript || '', note: r.note || '', includeNotes,

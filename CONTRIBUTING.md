@@ -67,7 +67,7 @@ src/docs/GUIDE.md     The full written feature guide
 - Match the existing patterns: small focused modules, the `el()` helper for DOM,
   Tailwind utility classes, and Lucide icons (never emoji).
 - Keep the app dependency-free (no bundler, no framework).
-- Use American English in user-facing text.
+- Use Australian English in user-facing text.
 - Test your change with at least one synthetic student before opening a PR.
 - Before committing, run `npm run check` (dead-code checker, copy and AI-gating tests, a few seconds, no build); `npm test` runs everything.
 

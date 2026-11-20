@@ -31,7 +31,7 @@ written version.
 2. **Add a learner.** Enter a name, birth year and, optionally, birth month.
    Harrington uses the age to suggest age-appropriate topics and to build the
    calendar; with the month the age is exact. Edit a learner's name, birthday
-   or color later with the pencil button in the learner selector.
+   or colour later with the pencil button in the learner selector.
 3. **Look around.** The sidebar (or the bottom bar on a phone) has
    **Dashboard, Calendar, Map, Records** and **Insights**. The sidebar also
    has **Reading & books** (on a phone, press **Reading** beside a learner in
@@ -407,7 +407,7 @@ together. The pictures are black outlines to colour in.
   not started in each subject.
 - **Recommended next.** The best unlocked topics in that subject.
 - **Observation checks.** The topics, sections and subjects you checked by
-  watching, each labeled "observed".
+  watching, each labelled "observed".
 - **Progress review, subject test and adaptive suggestions.** Needs a local AI
   provider; see the README.
 

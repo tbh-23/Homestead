@@ -716,7 +716,7 @@ Each item closes a way family data could leak or be lost today.
    recording.
 9. **With a cloud AI provider, assume it keeps what it is sent.** Learner
    names are replaced, but nicknames, other people's names, and everything
-   said in a recorded discussion you ask it to analyze are sent as they are,
+   said in a recorded discussion you ask it to analyse are sent as they are,
    and so are your notes when you tick "Include my notes". A provider on the
    host computer (Ollama) keeps all of it at home. Use `https://` for a
    provider on the internet. Plain `http://` is fine while it stays on your

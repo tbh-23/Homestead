@@ -49,7 +49,7 @@ test('Records analyze: notes only, the button waits for the opt-in and says why'
   const hint = controls.querySelector('p.text-ink-soft');
   assert.equal(btn.disabled, true);
   assert.equal(hint.hidden, false);
-  assert.equal(hint.textContent, 'Tick “Include my notes” to analyze your notes.');
+  assert.equal(hint.textContent, 'Tick “Include my notes” to analyse your notes.');
 
   controls.querySelector('label').click();
   assert.equal(btn.disabled, false);
@@ -75,6 +75,6 @@ test('Records analyze: nothing to analyze leaves the button off with a visible r
   const controls = analysisOptIn(btn, { transcript: ' ', note: '' }, () => assert.fail('must not run'));
   assert.equal(controls.querySelector('.include-notes'), null);
   assert.equal(btn.disabled, true);
-  assert.equal(controls.querySelector('p.text-ink-soft').textContent, 'Add a transcript or notes to analyze.');
+  assert.equal(controls.querySelector('p.text-ink-soft').textContent, 'Add a transcript or notes to analyse.');
   btn.click();
 });

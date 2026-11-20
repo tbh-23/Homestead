@@ -159,7 +159,7 @@ test('add an extra of each kind, open one, remove one; Extra practice opens spac
   // "Extra practice" opens that topic's practice (nothing is queued for it).
   const practiceRow = panel.locator('div.rounded-xl', { hasText: `Extra practice · ${TOPICS.oneToOne.name}` });
   await practiceRow.getByRole('button', { name: 'Open' }).click();
-  await expect(modal(page).getByText('Nothing to practice for this topic today')).toBeVisible();
+  await expect(modal(page).getByText('Nothing to practise for this topic today')).toBeVisible();
   await expect(modal(page).getByText(/Lesson plan · /)).toHaveCount(0);
   await page.keyboard.press('Escape');
 
@@ -293,10 +293,10 @@ test('Extra practice opens its own topic; with nothing for it, the whole queue i
   await row.getByRole('button', { name: 'Open' }).click();
   const m = modal(page);
   await expect(m).toContainText(`Spaced practice · ${TOPICS.oneToOne.name}`);
-  await expect(m).toContainText('Nothing to practice for this topic today');
+  await expect(m).toContainText('Nothing to practise for this topic today');
   await expect(m).not.toContainText('How many apples in all?');
   await shot('extra-practice-topic-empty', { full: false });
-  await m.getByRole('button', { name: 'Practice all due retries (1)' }).click();
+  await m.getByRole('button', { name: 'Practise all due retries (1)' }).click();
   await expect(modal(page)).toContainText('Retry 1 of 1');
   await expect(modal(page)).toContainText('How many apples in all?');
   await page.keyboard.press('Escape');

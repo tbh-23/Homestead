@@ -61,8 +61,8 @@ test('create one record of each type, filter, rate, link, delete', async ({ page
   await expect(page.locator('div.space-y-3 > div')).toHaveCount(4);
 
   // Discussion and recording records offer analysis; others do not.
-  await expect(card(page, 'Talked about sharing').getByRole('button', { name: 'Analyze & get advice' })).toBeVisible();
-  await expect(card(page, 'Where does the sun go at night?').getByRole('button', { name: 'Analyze & get advice' })).toHaveCount(0);
+  await expect(card(page, 'Talked about sharing').getByRole('button', { name: 'Analyse & get advice' })).toBeVisible();
+  await expect(card(page, 'Where does the sun go at night?').getByRole('button', { name: 'Analyse & get advice' })).toHaveCount(0);
 
   // Topic link.
   await card(page, 'Lined up toy cars by size').getByRole('button', { name: TOPICS.oneToOne.name }).click();
@@ -218,9 +218,9 @@ test.describe('with the mock AI provider', () => {
     await nav(page, 'Records').click();
     // A note-only discussion waits for the parent to share the note.
     const discussionCard = card(page, 'Talked about sharing');
-    const analyze = discussionCard.getByRole('button', { name: 'Analyze & get advice' });
+    const analyze = discussionCard.getByRole('button', { name: 'Analyse & get advice' });
     await expect(analyze).toBeDisabled();
-    await expect(discussionCard).toContainText('Tick “Include my notes” to analyze your notes.');
+    await expect(discussionCard).toContainText('Tick “Include my notes” to analyse your notes.');
     await discussionCard.getByRole('checkbox', { name: 'Include my notes in this request' }).check();
     await expect(analyze).toBeEnabled();
     await analyze.click();
@@ -247,7 +247,7 @@ test.describe('with the mock AI provider', () => {
     // In the recordings folder the analysis is stored on the recording itself.
     await nav(page, 'Dashboard').click();
     await page.getByRole('button', { name: /Recordings folder/ }).click();
-    await modal(page).getByRole('button', { name: 'Analyze & get advice' }).click();
+    await modal(page).getByRole('button', { name: 'Analyse & get advice' }).click();
     await expectToast(page, 'Analysis saved to this recording');
     await expect(modal(page).getByText('AI summary & advice')).toBeVisible();
     await expect(modal(page).getByRole('button', { name: 'Regenerate' })).toBeVisible();

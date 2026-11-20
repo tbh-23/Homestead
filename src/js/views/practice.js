@@ -42,12 +42,12 @@ export function openTopicPractice(topic) {
   const next = queued[0] ? new Date(queued[0].due).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) : '';
   const empty = el(`<div class="text-center py-8">
     <div class="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center mx-auto mb-4"><i data-lucide="check-check" class="w-8 h-8 text-brand-dark"></i></div>
-    <p class="font-600 text-lg">Nothing to practice for this topic today</p>
+    <p class="font-600 text-lg">Nothing to practise for this topic today</p>
     <p class="text-sm text-ink-soft mt-1 max-w-sm mx-auto">${queued.length
       ? `${esc(countLabel(queued.length, 'missed question'))} from ${esc(topic.name)} come${queued.length === 1 ? 's' : ''} back on ${esc(next)}.`
       : `Questions missed on a ${esc(topic.name)} test come back here for retries. None are queued.`}</p>
     ${due
-      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practice all due retries (${esc(formatCount(due))})</button>`
+      ? `<button id="allqueue" class="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-paper-line font-medium hover:border-brand/40 transition-colors"><i data-lucide="repeat" class="w-4 h-4"></i>Practise all due retries (${esc(formatCount(due))})</button>`
       : `<p class="text-xs text-ink-faint mt-4">No retries are due on other topics either.</p>`}
   </div>`);
   const all = empty.querySelector('#allqueue');
@@ -142,7 +142,7 @@ function runSession(stage, m, student, items, restart) {
       <p class="text-sm text-ink-soft mt-1">${esc(total)} retr${total > 1 ? 'ies' : 'y'} · <span class="text-brand-dark font-medium">${esc(results.correct)} correct</span>${results.missed ? ` · ${esc(results.missed)} to revisit` : ''}</p>
       <p class="text-xs text-ink-faint mt-3 max-w-sm mx-auto">Correct answers come back after a longer delay next time; missed ones return sooner — the same spacing behind active recall, now applied to real problems.</p>
       <div class="mt-6 space-y-2.5">
-        <button id="again" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Practice more</button>
+        <button id="again" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors">Practise more</button>
         <button id="close" class="w-full px-4 py-2.5 rounded-xl text-ink-soft font-medium hover:bg-paper transition-colors">Done</button>
       </div>
     </div>`));

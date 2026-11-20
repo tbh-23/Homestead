@@ -23,22 +23,22 @@ export function videoLinks(topic) {
 // even offline. Chosen from templates by subject + topic type.
 const ACTIVITY_TEMPLATES = {
   Mathematics: [
-    { icon: 'dices', title: 'Kitchen counter math', body: 'Use coins, buttons or dried pasta to physically model the idea, then say the answer aloud before writing it.' },
-    { icon: 'ruler', title: 'Real-world hunt', body: 'Find three examples of this concept around the house and photograph or draw them in a math journal.' },
+    { icon: 'dices', title: 'Kitchen counter maths', body: 'Use coins, buttons or dried pasta to physically model the idea, then say the answer aloud before writing it.' },
+    { icon: 'ruler', title: 'Real-world hunt', body: 'Find three examples of this concept around the house and photograph or draw them in a maths journal.' },
     { icon: 'target', title: 'Beat-your-best drill', body: 'Set a 2-minute timer and see how many problems can be solved correctly. Record the score to beat next time.' },
   ],
   English: [
     { icon: 'pen-line', title: 'Story of the day', body: 'Write or dictate 3–4 sentences using today\u2019s skill. Read it back aloud with expression.' },
     { icon: 'mic', title: 'Read & record', body: 'Record the child reading a short passage. Play it back together and celebrate one thing done well.' },
-    { icon: 'search', title: 'Word detective', body: 'Hunt through a favorite book for five examples of this concept and list them.' },
+    { icon: 'search', title: 'Word detective', body: 'Hunt through a favourite book for five examples of this concept and list them.' },
   ],
   Science: [
     { icon: 'flask-conical', title: 'Home experiment', body: 'Design a simple test at home. Predict what will happen first, then observe and compare.' },
-    { icon: 'notebook-pen', title: 'Observation journal', body: 'Draw a labeled diagram of what was observed and write one sentence explaining why it happens.' },
+    { icon: 'notebook-pen', title: 'Observation journal', body: 'Draw a labelled diagram of what was observed and write one sentence explaining why it happens.' },
     { icon: 'trees', title: 'Nature walk', body: 'Go outside and find a real example of this concept. Photograph it and discuss what is happening.' },
   ],
   History: [
-    { icon: 'scroll', title: 'Time detective', body: 'Find one artifact, image or story from this period and explain what it tells us about the people.' },
+    { icon: 'scroll', title: 'Time detective', body: 'Find one artefact, image or story from this period and explain what it tells us about the people.' },
     { icon: 'clapperboard', title: 'Act it out', body: 'Role-play a scene from this time. What would daily life have felt like?' },
     { icon: 'map', title: 'Then & now', body: 'Draw a picture showing how something from this period compares with life today.' },
   ],

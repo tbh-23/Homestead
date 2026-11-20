@@ -20,4 +20,4 @@ Closes HAR-
 - [ ] No copy of the taxonomy dataset committed
 - [ ] Curriculum attribution left intact
 - [ ] No real names or `data/private/` contents committed
-- [ ] User-facing text is in American English
+- [ ] User-facing text is in Australian English

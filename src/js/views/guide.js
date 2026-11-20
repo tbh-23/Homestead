@@ -252,7 +252,7 @@ export const guideSections = () => [
   { h: 'Insights', items: [
     ['Subject summary', 'How many topics are mastered, practicing, learning or not started in each subject.'],
     ['Recommended next', 'The best unlocked topics to work on in that subject.'],
-    ['Observation checks', 'Topics, sections and subjects you checked by watching, each labeled “observed”.'],
+    ['Observation checks', 'Topics, sections and subjects you checked by watching, each labelled “observed”.'],
     ['Needs AI', `Progress reviews, subject tests and adaptive suggestions. ${NEEDS_AI}`],
   ]},
   { h: 'Notifications', items: [

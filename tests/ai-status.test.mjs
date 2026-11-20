@@ -139,7 +139,7 @@ test('every AI-backed view uses the shared ai-status helper', async () => {
   for (const name of views) {
     const code = await source(`src/js/views/${name}.js`);
     assert.match(code, /from '\.\.\/ai-status\.js'/, `${name}.js does not import ../ai-status.js`);
-    assert.doesNotMatch(code, /Couldn.?t (generate|analyze|build|prepare|load recall|create the lesson)/,
+    assert.doesNotMatch(code, /Couldn.?t (generate|analy[sz]e|build|prepare|load recall|create the lesson)/,
       `${name}.js still has a generic AI failure message`);
   }
 });

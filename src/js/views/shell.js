@@ -138,7 +138,7 @@ function studentSwitcher(navigate, compact = false) {
   return btn;
 }
 
-// Below lg the learner's actions get a line of their own: 44px-tall labeled
+// Below lg the learner's actions get a line of their own: 44px-tall labelled
 // buttons that share the row's width (a fourth action still fits). On a
 // desktop they are the same 24px icons as before, at the end of the row.
 const rowActionCls = 'h-11 lg:w-6 lg:h-6 rounded-full flex items-center justify-center gap-1.5 bg-paper-card lg:bg-transparent text-ink-faint';
@@ -216,19 +216,19 @@ function bornLabel(s) {
 
 const inputCls = 'w-full px-3.5 py-2.5 rounded-full border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand';
 
-// Name, birth month and year, and (when editing) avatar color. Shared by the
+// Name, birth month and year, and (when editing) avatar colour. Shared by the
 // Add and Edit forms; read back with readStudentForm().
 function studentFields(s = null) {
   const year = new Date().getFullYear();
   const months = store.MONTHS.map((label, i) =>
     `<option value="${i + 1}" ${s?.birthMonth === i + 1 ? 'selected' : ''}>${label}</option>`).join('');
   const colors = s ? `<fieldset>
-      <legend class="text-sm font-medium block mb-1.5">Color</legend>
+      <legend class="text-sm font-medium block mb-1.5">Colour</legend>
       <div class="flex flex-wrap gap-2.5">${store.PALETTE.map((c, i) => `
         <label class="cursor-pointer">
           <input type="radio" name="color" value="${c}" class="sr-only peer" ${c === s.color ? 'checked' : ''} />
-          <span class="block w-9 h-9 rounded-full peer-checked:shadow-[0_0_0_3px_#fffdf8,0_0_0_5px_#f2c14e] peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40" style="background:${c}" title="Color ${i + 1}"></span>
-          <span class="sr-only">Color ${i + 1}</span>
+          <span class="block w-9 h-9 rounded-full peer-checked:shadow-[0_0_0_3px_#fffdf8,0_0_0_5px_#f2c14e] peer-focus-visible:ring-2 peer-focus-visible:ring-brand/40" style="background:${c}" title="Colour ${i + 1}"></span>
+          <span class="sr-only">Colour ${i + 1}</span>
         </label>`).join('')}
       </div>
     </fieldset>` : '';
@@ -457,7 +457,7 @@ function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
-    ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner color'))} adjusted to the nearest palette color.</p>` : ''}
+    ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner colour'))} adjusted to the nearest palette colour.</p>` : ''}
     ${picturesDropped ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(picturesDropped, 'unknown picture item'))} from a newer version will be left out of saved books.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>

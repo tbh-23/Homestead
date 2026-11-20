@@ -231,9 +231,9 @@ test.describe('with the mock AI provider', () => {
     const activities = section(page, 'Activities & games');
     await expect(activities).toContainText('Hands-on activities');
     await expect(activities).toContainText('Games to play');
-    await activities.getByRole('button', { name: /Kitchen counter math/ }).click();
+    await activities.getByRole('button', { name: /Kitchen counter maths/ }).click();
     const detail = modal(page);
-    await expect(detail.getByRole('heading', { name: 'Kitchen counter math' })).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Kitchen counter maths' })).toBeVisible();
     await expect(detail).toContainText(MARKERS.activitySetup);
     await expect(detail.getByText('How to play', { exact: true })).toBeVisible();
     await shot('activity-instructions', { full: false });

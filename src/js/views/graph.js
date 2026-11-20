@@ -461,7 +461,7 @@ function renderSkillTree(params, active, navigate) {
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-soft">${esc(domainNode.domain)}</span>
       </p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(domainNode.domain)}</h1>
-      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-3xl">Skills, not weeks. Solid branches are required gates. Dashed branches help. Locked skills stay dim but visible so the road ahead is not hidden. Neighbor domains sit on the rim as gateways.</p>
+      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-3xl">Skills, not weeks. Solid branches are required gates. Dashed branches help. Locked skills stay dim but visible so the road ahead is not hidden. Neighbour domains sit on the rim as gateways.</p>
       <button type="button" class="find-link mt-1 min-h-11 inline-flex items-center gap-1.5 text-sm font-medium text-brand-dark hover:text-brand"><i data-lucide="search" class="w-4 h-4"></i>Find a topic</button>
     </div>`));
   wrap.querySelector('.find-link').onclick = () => navigate('find');

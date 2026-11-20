@@ -73,7 +73,7 @@ Out of the box, with no AI provider configured, Harrington runs on this
 computer only and these work:
 
 - **Learners** — add, edit and switch learners (name, birth month and year,
-  color).
+  colour).
 - **Dashboard** — Today's path with the daily literacy and numeracy choices,
   stepping stones to try next, subject progress, recent growth and evidence.
 - **Child view** — the garden, story time and number time picks, and "Tell
@@ -87,7 +87,7 @@ computer only and these work:
 - **Decodable books** — a learner's reading setup (the sounds and tricky
   words they know, ticked set by set or with "Find the level"), built-in
   books within that code, new books made from a word bank, a library, and
-  printing as an A4 booklet or flat A5 pages, black outlines to color in.
+  printing as an A4 booklet or flat A5 pages, black outlines to colour in.
 - **Records and recordings** — notes, observations and voice recordings saved
   on this computer. The live transcript uses your browser's speech service,
   which may send audio to the browser vendor.
@@ -340,7 +340,7 @@ of the learner selector) downloads
 and `taxonomyVersion`. **Import** checks a file, previews its learners and
 record counts, and after you confirm replaces the family data on this server.
 The check (`src/js/document.js`) covers learner fields (id, name, birth year
-and month, start date, a hex color, and an Australian Curriculum setting,
+and month, start date, a hex colour, and an Australian Curriculum setting,
 which must be `{ id: 'acara-v9', year }` with a year of F or 1 to 6), progress statuses, records (type,
 rating, bounded text, numeric dates, a placement's topic list), test and
 challenge results (scores and counts as numbers), XP and badges, the shape of
@@ -350,8 +350,8 @@ practice items (each an object) and activity,
 interests, calendar settings, the child-view PIN hash and salt, dismissed
 alerts and notifications (including their details), and says what it
 refused. Other fields are not checked. An active learner that is not in the
-file becomes its first learner. A learner color outside the palette
-is moved to the nearest palette color, and the preview says how many were.
+file becomes its first learner. A learner colour outside the palette
+is moved to the nearest palette colour, and the preview says how many were.
 The server applies the same check to every save and answers 422 with the
 reason. The JSON file does not contain recordings or the AI provider
 settings, so keep a `data/private/` backup too. The child-view PIN is stored and exported only as

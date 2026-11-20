@@ -1,5 +1,5 @@
-// One way to print a count everywhere it is shown. All copy is American
-// English, so counts are grouped the American way ("1,590") whatever the
+// One way to print a count everywhere it is shown. All copy is Australian
+// English, and counts use standard comma grouping ("1,590") whatever the
 // browser's locale, and the noun follows English plural rules.
 const LOCALE = 'en-US';
 const numbers = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });

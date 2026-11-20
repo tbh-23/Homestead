@@ -143,7 +143,7 @@ tests or review. Break none of them.
    text inside the app (MIT notice in source only); the figure contract forbids
    third-party scripts and fonts.
 8. Region or location data is never sent anywhere without opt-in.
-9. User-facing text in American English, including "color".
+9. User-facing text in Australian English, including "colour", "practise" (verb) / "practice" (noun), "organise" and "maths".
 10. Never skip, disable or quarantine a test to get green. Never rewrite
     history on a branch someone else owns.
 
