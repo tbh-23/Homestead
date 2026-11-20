@@ -12,8 +12,14 @@ import { allGraphemes, DOUBLES, UNTAUGHT } from './sequence.js';
 const UNIVERSE = [...new Set([...allGraphemes(), ...DOUBLES, ...UNTAUGHT])];
 
 // Words whose letters segment into known sounds but are not said that way
-// ("of" is not o-f), so they read only as tricky words.
-const IRREGULAR = new Set(['of']);
+// ("of" is not o-f, "the" is not th-e, "was" is not w-a-s), so they read only
+// when ticked as tricky words. ("her" is left out: UNTAUGHT blocks "er" until
+// a parent adds custom "er", after which h-er decodes regularly.)
+const IRREGULAR = new Set([
+  'of', 'the', 'is', 'i', 'to', 'no', 'go', 'into',
+  'he', 'she', 'we', 'me', 'be', 'was', 'you',
+  'they', 'all', 'are', 'my',
+]);
 
 // A vowel, one consonant and a final e (cake, like, home, cute): the e
 // changes the vowel, a split digraph. Readable only when the code has that
@@ -93,7 +99,7 @@ export function wordsOf(text) {
 // One word against the code: { ok, word (lower case), tricky, parts }.
 export function checkWord(raw, code) {
   if (!/^[A-Za-z]+$/.test(raw)) return { ok: false, word: raw.toLowerCase(), tricky: false, parts: null };
-  // A capitalized name reads like any other word: P-a-t, Pat.
+  // A capitalised name reads like any other word: P-a-t, Pat.
   const word = raw.toLowerCase();
   if (code.tricky.has(word)) return { ok: true, word, tricky: true, parts: null };
   if (IRREGULAR.has(word)) return { ok: false, word, tricky: false, parts: null };

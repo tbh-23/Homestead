@@ -97,8 +97,8 @@ test('the books page lists only books within the code and follows a new tick', a
   await gotoApp({ seed: withReading({ graphemes: SET1 }), hash: `learner/${ROWAN}/books` });
   await expect(page.getByRole('heading', { level: 1, name: 'Books for Rowan Example' })).toBeVisible();
   const ready = page.locator('#bank-list article');
-  await expect(ready).toHaveCount(1);
-  await expect(ready.first().getByRole('heading')).toHaveText('Tap, tap');
+  await expect(ready).toHaveCount(3);
+  await expect(ready.getByRole('heading')).toHaveText(['Tap, tap', 'Tass sat', 'Pat at a tap']);
   await expect(ready.first().getByRole('button', { name: 'Print booklet' })).toBeVisible();
   await expect(ready.first().getByRole('button', { name: 'Print flat' })).toBeVisible();
   await expect(ready.first().getByRole('button', { name: 'Save to library' })).toBeVisible();
@@ -108,13 +108,21 @@ test('the books page lists only books within the code and follows a new tick', a
   await expect(pip.getByRole('button')).toHaveCount(0);
   await expect(page.locator('#beyond-list')).not.toContainText('A bee in a tree');
 
-  // Tick set 2 on the setup page; the books follow.
+  // Tick set 2 on the setup page; the books follow (Set 2 first, Set 1 last).
   await page.getByRole('button', { name: 'Change the sounds' }).click();
   await fieldset(page, 2).getByRole('checkbox', { name: 'Whole set 2', exact: true }).check();
   await expect(stageLine(page)).toHaveText('Reading at set 2. Next sounds: o d g l');
   await page.getByRole('button', { name: 'Books for Rowan Example' }).click();
   await expect(page).toHaveURL(new RegExp(`#learner/${ROWAN}/books$`));
-  await expect(ready.getByRole('heading')).toHaveText(['Pip the cat', 'Caps', 'Tap, tap']);
+  await expect(ready).toHaveCount(6);
+  await expect(ready.getByRole('heading')).toHaveText([
+    'Pip the cat',
+    'Caps',
+    'Mim at the mat',
+    'Tap, tap',
+    'Tass sat',
+    'Pat at a tap',
+  ]);
   await expect(page.locator('#beyond-list')).toContainText('Dot the dog');
   await expect(page.locator('#beyond-list')).toContainText('needs: o d g');
   await shot('books-page');
@@ -145,9 +153,9 @@ test('make a new book: a printable story from the code, saved to the library', a
   await page.getByRole('button', { name: 'Make a book' }).click();
   const made = page.locator('#made article');
   await expect(made.locator('.made-pages li')).toHaveCount(6);
-  const first = await made.getByRole('heading').textContent();
+  const firstPages = await made.locator('.made-pages li').allTextContents();
   await page.getByRole('button', { name: 'Shuffle' }).click();
-  await expect(made.getByRole('heading')).not.toHaveText(first);
+  await expect.poll(() => made.locator('.made-pages li').allTextContents()).not.toEqual(firstPages);
   await expect(page.getByRole('button', { name: 'Shuffle' })).toBeFocused();
   await page.getByRole('radio', { name: '12 pages' }).check();
   await expect(made.locator('.made-pages li')).toHaveCount(10);

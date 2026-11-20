@@ -57,6 +57,7 @@ test('cover, numbered story pages and the back page', () => {
   assert.match(back, /Words to sound out<\/h2>\s*<p class="words">a at Pat sat tap taps<\/p>/);
   assert.doesNotMatch(back, /Tricky words/, 'no tricky words in this one');
   assert.match(back, /Reading it together/);
+  assert.match(back, /Colour the pictures in together\./);
   const pip = bookPrintDocument(BANK.find((b) => b.title === 'Pip the cat'), { layout: 'flat', autoPrint: false });
   assert.match(pip, /Tricky words<\/h2><p class="words">the is<\/p>/);
   // Every page has its picture.

@@ -45,6 +45,7 @@ const style = (layout, fontBase) => `
   .blank{}
   .sheet{width:297mm;height:210mm;display:flex;break-after:page;page-break-after:always}
   .flat>.page{break-after:page;page-break-after:always}
+  .sheet:last-child,.flat>.page:last-child{break-after:auto;page-break-after:auto}
   .note{font:15px/1.4 sans-serif;margin:12px;padding:10px 12px;border:1.5px solid #000;max-width:600px}
   @media screen{body{background:#eee}.page,.sheet{background:#fff;margin:12px;box-shadow:0 0 0 1px #999}.sheet .page{margin:0;box-shadow:none}.sheet .page+.page{border-left:1px dashed #999}}
   @media print{.note{display:none}}
@@ -82,7 +83,7 @@ function backPage(facts, n) {
       <li>A name with a capital letter is read the same way: “P-a-t, Pat”.</li>
       <li>Talk about the picture after the page is read, not before.</li>
       <li>Read it again tomorrow. The second read is where fluency comes from.</li>
-      <li>Color the pictures in together.</li>
+      <li>Colour the pictures in together.</li>
     </ul>
     <p class="small">A Harrington decodable book. Every word was checked against the sounds above.</p>
   </section>`;

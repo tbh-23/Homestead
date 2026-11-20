@@ -119,8 +119,20 @@ test('graphemes the sequence does not teach are not read letter by letter', () =
   // A vowel, a consonant and a final e is a split digraph, not three sounds.
   for (const w of ['cake', 'like', 'home', 'cute', 'quake']) assert.equal(checkWord(w, six).ok, false, `${w} at set 6`);
   assert.equal(checkWord('cake', makeCode({ graphemes: [...six.graphemes, 'a-e'] })).ok, true, 'a code with a-e reads cake');
-  // Not split digraphs: a final e alone, ee, a double before e, a digraph word.
-  for (const w of ['bee', 'tree', 'the', 'she']) assert.equal(checkWord(w, makeCode({ graphemes: allGraphemes(), clusters: true })).ok, true, w);
+  // Not split digraphs: ee, a double before e, or a vowel digraph before v-e.
+  for (const w of ['bee', 'tree', 'freeze', 'leave']) assert.equal(checkWord(w, makeCode({ graphemes: allGraphemes(), clusters: true })).ok, true, w);
+  // Irregular tricky words never pass letter by letter when unticked, even with
+  // every grapheme and adjacent consonants known; "her" passes once custom "er"
+  // is added.
+  const allSoundsOnly = makeCode({ graphemes: allGraphemes(), clusters: true, tricky: [] });
+  for (const w of ['of', 'the', 'is', 'I', 'to', 'no', 'go', 'into', 'he', 'she', 'we', 'me', 'be', 'was', 'you', 'they', 'all', 'are', 'my', 'her']) {
+    assert.equal(checkWord(w, allSoundsOnly).ok, false, `${w} without tricky`);
+  }
+  const withAllTricky = makeCode({ graphemes: allGraphemes(), clusters: true, tricky: allTrickyWords() });
+  for (const w of allTrickyWords()) assert.equal(checkWord(w, withAllTricky).ok, true, `${w} ticked`);
+  const withEr = makeCode({ graphemes: [...allGraphemes(), 'er'], clusters: true, tricky: [] });
+  assert.equal(checkWord('her', withEr).ok, true, 'custom er decodes her');
+  assert.equal(checkWord('the', withEr).ok, false, 'the stays irregular');
 });
 
 test('adjacent consonants need the clusters stage; a final -s does not count', () => {
@@ -194,13 +206,17 @@ test('every scene item in the bank is a picture the library has', () => {
   }
 });
 
-test('every stage from set 1 to ee ea has a bank book, and the ported three are there', () => {
-  const stages = new Set(BANK.map((b) => bookStage(b)));
-  for (let n = 1; n <= seq.stages.length; n += 1) assert.ok(stages.has(n), `a book for ${seq.stages[n - 1].label}`);
-  for (const title of ['Tap, tap', 'Pip the cat', 'Caps']) assert.ok(BANK.some((b) => b.title === title), title);
-  // Made-up names only: every capitalized word is a name of the generator's list
-  // or a sentence start.
-  const names = new Set([...NAMES.map((n) => n.name), 'Bob', 'Chip', 'Fred', 'Meg', 'Jack', 'Jay', 'Dee']);
+test('every stage from set 1 to ee ea has at least three bank books, and the twelve original books remain', () => {
+  assert.ok(BANK.length >= 33, `bank has ${BANK.length} books`);
+  for (let n = 1; n <= seq.stages.length; n += 1) {
+    const count = BANK.filter((b) => bookStage(b) === n).length;
+    assert.ok(count >= 3, `${seq.stages[n - 1].label} has ${count} books`);
+  }
+  for (const title of ['Tap, tap', 'Pip the cat', 'Caps', 'Dot the dog', 'A duck on a ship', 'Fred the frog', 'A bee in a tree']) {
+    assert.ok(BANK.some((b) => b.title === title), title);
+  }
+  // Made-up names only: every capitalised word mid-sentence is in NAMES.
+  const names = new Set(NAMES.map((n) => n.name));
   for (const book of BANK) {
     for (const p of book.pages) {
       const words = p.text.split(/\s+/);
@@ -213,39 +229,58 @@ test('every stage from set 1 to ee ea has a bank book, and the ported three are 
   }
 });
 
-test('booksFor lists books within the code, newest sounds first, and those just beyond with what they need', () => {
+test('booksFor lists books within the code, newest sounds first, and respects unticked irregular tricky words', () => {
+  const set1Within = booksFor(codeAt(1)).within;
+  assert.equal(set1Within.length, 3);
+  assert.ok(set1Within.some((b) => b.title === 'Tap, tap'));
+
   const { within, beyond } = booksFor(codeAt(2));
-  assert.deepEqual(within.map((b) => b.title).sort(), ['Caps', 'Pip the cat', 'Tap, tap']);
-  assert.notEqual(within[within.length - 1].title, 'Caps', 'newest sounds first: set 1 is last');
-  assert.equal(within[within.length - 1].title, 'Tap, tap');
+  assert.equal(within.length, 6);
+  for (const title of ['Caps', 'Pip the cat', 'Tap, tap']) assert.ok(within.some((b) => b.title === title), title);
+  assert.deepEqual(within.map((b) => bookStage(b)), [2, 2, 2, 1, 1, 1], 'newest sounds first: set 2 before set 1');
   const dot = beyond.find((b) => b.book.title === 'Dot the dog');
   assert.deepEqual(dot.missing.graphemes, ['o', 'd', 'g']);
   assert.equal(describeMissing(dot.missing), 'o d g');
   assert.ok(!beyond.some((b) => b.book.title === 'A bee in a tree'), 'far books are not listed');
   assert.deepEqual(booksFor(makeCode()).within, []);
-  // Every bank book is within the whole code.
+  // Every bank book is within the whole code (all sounds, clusters and default tricky words).
   assert.equal(booksFor(codeAt(11)).within.length, BANK.length);
   const duck = BANK.find((b) => b.title === 'A duck on a ship');
   assert.equal(describeMissing(missingFor(duck, codeAt(6))), 'w ck sh');
+  // Unticking irregular tricky words moves books that use them out of within,
+  // even when all 36 graphemes and adjacent consonants are known.
   const frog = BANK.find((b) => b.title === 'Fred the frog');
-  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: allGraphemes() }))), 'adjacent consonants', 'the and is decode with every sound known');
-  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: SET12, clusters: true }))).endsWith('tricky: the'), true, 'is decodes from i and s; the needs th');
-  // Every sound, adjacent consonants and an emptied tricky list: every book reads.
-  const full = makeCode({ graphemes: allGraphemes(), clusters: true, tricky: [] });
-  const { within: fullWithin, beyond: fullBeyond } = booksFor(full);
-  assert.equal(fullWithin.length, BANK.length, fullBeyond.map((b) => `${b.book.title}: ${describeMissing(b.missing)}`).join('; '));
+  const fullNoTricky = makeCode({ graphemes: allGraphemes(), clusters: true, tricky: [] });
+  assert.equal(describeMissing(missingFor(frog, fullNoTricky)), 'tricky: the is');
+  assert.equal(describeMissing(missingFor(frog, makeCode({ graphemes: SET12, clusters: true }))).endsWith('tricky: the is'), true);
+  const { within: noTrickyWithin } = booksFor(fullNoTricky);
+  assert.ok(noTrickyWithin.every((b) => b.tricky.length === 0), 'books needing unticked irregular words stay out of within');
+  assert.ok(noTrickyWithin.some((b) => b.title === 'Tap, tap'));
+  // A regular word in tricky ("her") is covered once custom "er" is added.
+  const herBook = { title: 'Her fern', graphemes: ['h', 'f', 'n', 'er'], tricky: ['her'], clusters: false };
+  assert.deepEqual(missingFor(herBook, makeCode({ graphemes: ['h', 'f', 'n'] })).tricky, ['her']);
+  assert.deepEqual(missingFor(herBook, makeCode({ graphemes: ['h', 'f', 'n', 'er'] })).tricky, []);
 });
 
 // ---- pictures ------------------------------------------------------------------
-test('pictures are outlines to color: black strokes, white fills, no color', () => {
-  for (const kind of ['person', 'cat', 'dog', 'tap', 'cap', 'map', 'mat', 'sun', 'hat', 'bus', 'pig', 'hen', 'cup', 'bed', 'fish', 'ship', 'duck', 'frog', 'bell', 'cloud', 'tree', 'bee']) {
+test('pictures are outlines to colour in: black strokes, white fills, dedicated noun art', () => {
+  assert.ok(PICTURE_KINDS.length >= 57, `picture library has ${PICTURE_KINDS.length} kinds`);
+  for (const kind of ['person', 'cat', 'dog', 'tap', 'cap', 'map', 'mat', 'rug', 'rain', 'quiz', 'kit', 'keg', 'yak', 'fox', 'web', 'ring', 'king', 'drum', 'crab', 'train', 'tray', 'jeep', 'seal', 'sun', 'hat', 'bus', 'pig', 'hen', 'cup', 'bed', 'fish', 'ship', 'duck', 'frog', 'bell', 'cloud', 'tree', 'bee']) {
     assert.ok(PICTURES[kind], `the library has ${kind}`);
   }
+  // Every generator noun has its own dedicated picture primitive (no shared fallback).
+  for (const n of NOUNS) {
+    assert.equal(n.pic, n.word, `${n.word} uses its own dedicated picture`);
+    assert.ok(isPictureKind(n.pic), `picture exists for ${n.word}`);
+  }
+  assert.equal(new Set(NOUNS.map((n) => n.pic)).size, NOUNS.length);
+  assert.notEqual(renderItem({ kind: 'rug' }), renderItem({ kind: 'mat' }), 'rug is distinct from mat');
+  assert.notEqual(renderItem({ kind: 'rain' }), renderItem({ kind: 'cloud' }), 'rain is distinct from cloud');
   const variants = [
     ...PICTURE_KINDS.map((kind) => ({ kind })),
     { kind: 'person', pose: 'sit', arms: 'pat' }, { kind: 'person', arms: 'wave', cap: true }, { kind: 'person', arms: 'out', hair: 'long' },
     { kind: 'person', pose: 'sit', seat: false }, { kind: 'cat', pose: 'fat', cap: true }, { kind: 'cat', pose: 'sip' }, { kind: 'cat', pose: 'nap' },
-    { kind: 'dog', pose: 'sit' }, { kind: 'tap', drips: 3 },
+    { kind: 'dog', pose: 'sit' }, { kind: 'tap', drips: 3 }, { kind: 'cloud', rain: true },
   ];
   for (const v of variants) {
     for (const scale of [0.6, 1, 1.5]) {
@@ -266,6 +301,9 @@ test('pictures are outlines to color: black strokes, white fills, no color', () 
       assert.match(svg, /stroke-linejoin="round" stroke-linecap="round"/);
     }
   }
+  // Sitting lap and sipping bowl use closed white regions, never unclosed seams.
+  assert.doesNotMatch(renderItem({ kind: 'person', pose: 'sit' }), /M0 39 V55/);
+  assert.match(renderItem({ kind: 'cat', pose: 'sip' }), /<ellipse cx="-88" cy="-18"/);
   const svg = renderScene([]);
   assert.match(svg, new RegExp(`viewBox="0 0 ${VIEW_W} ${VIEW_H}"`));
   assert.match(svg, /<path d="M8 262 H392"[^>]*stroke-width="1.5"/, 'a thin ground line');
@@ -283,11 +321,12 @@ test('pictures are outlines to color: black strokes, white fills, no color', () 
 });
 
 // ---- generator -----------------------------------------------------------------
-test('the generator\'s books pass checkBook at every stage, over many seeds and both lengths', () => {
+test('the generator\'s books pass checkBook at every stage across 80 seeds, both lengths, and natural sentences', () => {
+  const STILTED = /\b(shuts a (?:ship|bus|train|jeep)|fixes a (?:cap|hat|mat|rug|cup|jug|pot|pan|dish|pail|bag|cat|dog|pig|hen|duck|frog)|paints a (?:cat|dog|pig|hen|duck|frog|cap|hat|sock)|zips a (?:box|van|kit)|rings a (?:drum|pot|pan|cup|tap|box)|beats a (?:bell|tap|cup|pot|pan|box))\b/i;
   for (let n = 1; n <= seq.stages.length; n += 1) {
     const code = codeAt(n);
     const focus = seq.stages[n - 1].graphemes;
-    for (let seed = 1; seed <= 60; seed += 1) {
+    for (let seed = 1; seed <= 80; seed += 1) {
       for (const pages of [6, 10]) {
         const book = generateBook(code, { focus, seed, pages, focusClusters: !focus.length });
         const at = `stage ${n}, seed ${seed}, ${pages} pages`;
@@ -305,12 +344,13 @@ test('the generator\'s books pass checkBook at every stage, over many seeds and 
         if (!focus.length) assert.ok(book.clusters, `${at}: a word with two consonants together`);
         // No sentence twice once the code can say more than set 1.
         if (n > 1) assert.equal(new Set(book.pages.map((p) => p.text)).size, pages, `${at}: no repeated page`);
+        for (const p of book.pages) assert.doesNotMatch(p.text, STILTED, `${at}: ${p.text}`);
       }
     }
   }
 });
 
-test('the generator is deterministic for a seed, favors the focus and needs some code', () => {
+test('the generator is deterministic for a seed, favours the focus, and handles set-1 name collisions', () => {
   const code = codeAt(7);
   const a = generateBook(code, { focus: ['ck', 'sh'], seed: 42 });
   assert.deepEqual(generateBook(code, { focus: ['ck', 'sh'], seed: 42 }), a);
@@ -321,7 +361,16 @@ test('the generator is deterministic for a seed, favors the focus and needs some
     for (let seed = 1; seed <= 40; seed += 1) n += generateBook(code, { focus, seed }).graphemes.filter((g) => ['ck', 'sh'].includes(g)).length;
     return n;
   };
-  assert.ok(uses(['ck', 'sh']) > uses([]), 'the focus is favored');
+  assert.ok(uses(['ck', 'sh']) > uses([]), 'the focus is favoured');
+  // Focus graphemes qu, k, wh and ng hit real words even when focus-bearing names are avoided.
+  for (const [stage, grapheme] of [[5, 'qu'], [6, 'k'], [8, 'wh'], [8, 'ng']]) {
+    let hits = 0;
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const b = generateBook(codeAt(stage), { focus: [grapheme], seed, avoidNames: ['Quin', 'Kim', 'Ken', 'Whit'] });
+      if (b.graphemes.includes(grapheme)) hits += 1;
+    }
+    assert.ok(hits >= 15, `${grapheme} at stage ${stage} hit ${hits}/40 seeds without character names`);
+  }
   assert.equal(generateBook(makeCode(), { seed: 1 }), null);
   assert.equal(generateBook(makeCode({ graphemes: ['i', 'm'] }), { seed: 1 }), null, 'no name to write about');
   // Names come from the made-up list, never the learner.
@@ -335,7 +384,12 @@ test('the generator is deterministic for a seed, favors the focus and needs some
     const book = generateBook(codeAt(5), { seed, avoidNames: ['Sam Smith', 'kim', 'Ben'] });
     assert.ok(!/\b(Sam|Kim|Ben)\b/.test(JSON.stringify(book.pages.map((p) => p.text)) + book.title), `seed ${seed}`);
   }
-  assert.equal(generateBook(makeCode({ graphemes: SET1 }), { avoidNames: ['Pat'] }), null, 'no name left to use');
+  // At set 1, avoiding "Pat" still writes a story with "Tass"; avoiding both leaves none.
+  const patAvoided = generateBook(makeCode({ graphemes: SET1 }), { avoidNames: ['Pat'], seed: 1 });
+  assert.ok(patAvoided, 'set 1 has Tass when Pat is avoided');
+  assert.doesNotMatch(JSON.stringify(patAvoided), /\bPat\b/);
+  assert.match(JSON.stringify(patAvoided), /\bTass\b/);
+  assert.equal(generateBook(makeCode({ graphemes: SET1 }), { avoidNames: ['Pat', 'Tass'], seed: 1 }), null, 'no name left to use');
   assert.ok(NOUNS.every((n) => PICTURE_KINDS.includes(n.pic)));
 });
 

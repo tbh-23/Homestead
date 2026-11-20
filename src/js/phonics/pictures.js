@@ -1,14 +1,14 @@
-// Outline pictures for the decodable books (HAR-45), drawn to be colored in:
+// Outline pictures for the decodable books (HAR-45), drawn to be coloured in:
 // black strokes 3.5 units wide at the 400 x 300 viewBox, whatever an item's
 // scale, round joins and caps, every enclosed region filled white so a shape
-// in front hides the one behind and each region is one patch to color. No
-// color anywhere: only black, white and "none" (open lines).
+// in front hides the one behind and each region is one patch to colour. No
+// colour anywhere: only black, white and "none" (open lines).
 //
 // A book stores a scene as data, a list of items { kind, x, y, scale, pose }
 // (plus a few kind-specific options such as `cap`, `drips` or `flip`), never
 // as SVG. renderScene() draws it. Grounded things (people, animals, a bus)
 // stand on (x, y); floating things (a tap on the wall, the sun, a cloud, a
-// fish, a map, a bee) are centered on it. The ground line is at y = 262.
+// fish, a map, a bee) are centred on it. The ground line is at y = 262.
 // No DOM: a string out, so Node tests and the print document share it.
 
 export const VIEW_W = 400;
@@ -42,24 +42,25 @@ const circle = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}" ${W}/>`;
 const ARMS = {
   down: [14, -14],
   out: [14, -88],
-  pat: [14, -52],
+  pat: [14, -46],
   wave: [14, -160],
   both: [70, -70],
 };
 function person({ pose = 'stand', arms = 'down', cap = false, hair = 'short', seat = true } = {}) {
   const sit = pose === 'sit';
-  const dy = sit ? (seat === false ? 46 : 12) : 0; // the upper body sits lower
+  const dy = sit ? (seat === false ? 58 : 12) : 0; // the upper body sits lower
   const [la, ra] = ARMS[arms] || ARMS.down;
   let legs;
   if (sit) {
-    const stool = seat === false ? '' : `<rect x="-36" y="-52" width="66" height="12" rx="4" ${W}/>
-      <rect x="-32" y="-42" width="9" height="42" rx="3" ${W}/><rect x="18" y="-42" width="9" height="42" rx="3" ${W}/>`;
-    // Without a stool (on a mat or a bed) the legs rest on what is below.
+    // Stool legs sit behind the stool top; the shirt hem, thigh and stool share
+    // y = -50 so no sub-millimetre gap forms along the lap or knee.
+    const stool = seat === false ? '' : `<rect x="-32" y="-44" width="9" height="44" rx="3" ${W}/><rect x="16" y="-44" width="9" height="44" rx="3" ${W}/>
+      <rect x="-36" y="-50" width="72" height="12" rx="4" ${W}/>`;
     legs = seat === false
-      ? `<rect x="-14" y="-18" width="58" height="16" rx="8" ${W}/><ellipse cx="48" cy="-8" rx="9" ry="12" ${W}/>`
+      ? `<path d="M0 -16 H48 V0 H0 Z" ${W}/><ellipse cx="50" cy="-10" rx="8" ry="11" ${W}/>`
       : `${stool}
-      <rect x="-12" y="-66" width="56" height="16" rx="8" ${W}/><rect x="30" y="-62" width="15" height="58" rx="7" ${W}/>
-      <ellipse cx="42" cy="-4" rx="13" ry="6.5" ${W}/>`;
+      <path d="M0 -50 V-66 H37 Q45 -66 45 -58 V-5 H30 V-50 Z" ${W}/>
+      <ellipse cx="40" cy="-5" rx="13" ry="5.5" ${W}/>`;
   } else {
     legs = `<rect x="-17" y="-64" width="14" height="62" rx="7" ${W}/><rect x="3" y="-64" width="14" height="62" rx="7" ${W}/>
       <ellipse cx="-13" cy="-4" rx="12" ry="6.5" ${W}/><ellipse cx="13" cy="-4" rx="12" ry="6.5" ${W}/>`;
@@ -68,7 +69,7 @@ function person({ pose = 'stand', arms = 'down', cap = false, hair = 'short', se
   const [lx, ly] = limbEnd(-22, sy, la);
   const [rx, ry] = limbEnd(22, sy, ra);
   const arm = (x, y, deg, hx, hy) => `${limb(x, y, deg)}<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="7.5" ${W}/>`;
-  const hy = -150 + dy; // head center
+  const hy = -150 + dy; // head centre
   const top = cap
     ? `<path d="M-28 ${hy - 6} C-28 ${hy - 42} 28 ${hy - 42} 28 ${hy - 6} Z" ${W}/><path d="M20 ${hy - 12} H52 Q58 ${hy - 12} 58 ${hy - 6} H20 Z" ${W}/><circle cx="0" cy="${hy - 32}" r="4" ${W}/>`
     : hair === 'long'
@@ -78,7 +79,9 @@ function person({ pose = 'stand', arms = 'down', cap = false, hair = 'short', se
   const front = arms === 'down' ? '' : arm(22, sy, ra, rx, ry);
   const back = arms === 'down' ? arm(-22, sy, la, lx, ly) + arm(22, sy, ra, rx, ry) : arm(-22, sy, la, lx, ly);
   const longBack = !cap && hair === 'long' ? top : '';
-  return `${longBack}${legs}${back}<rect x="-27" y="${-124 + dy}" width="54" height="${sit ? 64 : 68}" rx="17" ${W}/>${front}
+  const ty = -124 + dy;
+  const by = sit ? (seat === false ? 0 : -50) : -56;
+  return `${longBack}${legs}${back}<path d="M-26 ${ty + 16} Q-26 ${ty} -10 ${ty} H10 Q26 ${ty} 26 ${ty + 16} V${by} H-26 Z" ${W}/>${front}
     <circle cx="0" cy="${hy}" r="26" ${W}/>${longBack ? '' : top}
     ${dot(-9, hy + 1)}${dot(9, hy + 1)}<path d="M-9 ${hy + 12} Q0 ${hy + 19} 9 ${hy + 12}" ${OPEN}/>`;
 }
@@ -96,19 +99,19 @@ function cat({ pose = 'sit', cap = false } = {}) {
       <path d="M-50 -34 Q-46 -30 -42 -34 M-34 -34 Q-30 -30 -26 -34" ${OPEN}/><path d="M-41 -24 l3 3 l3 -3 z" ${INK}/>
       <path d="M40 -36 Q30 -20 14 -12" ${OPEN}/>`;
   }
-  const rx = fat ? 60 : 42;
-  const ry = fat ? 44 : 34;
-  const [hx, hy] = pose === 'sip' ? [-48, -40] : [-30, -82 - (fat ? 10 : 0)];
+  const rx = fat ? 58 : 42;
+  const ry = fat ? 42 : 34;
+  const [hx, hy] = pose === 'sip' ? [-48, -50] : fat ? [-32, -100] : [-30, -86];
   const head = `<g transform="translate(${hx} ${hy})">
       ${cap ? '' : `<path d="M-24 -10 L-22 -42 L-6 -24 Z" ${W}/><path d="M24 -10 L22 -42 L6 -24 Z" ${W}/>`}
       <circle r="26" ${W}/>
       ${cap ? `<path d="M-24 -12 C-24 -46 24 -46 24 -12 Z" ${W}/><path d="M16 -18 H44 Q50 -18 50 -12 H16 Z" ${W}/>` : ''}
       ${dot(-9, -2)}${dot(9, -2)}<path d="M-4 8 L0 12 L4 8 Z" ${INK}/>
       <path d="M0 12 Q-4 18 -9 15 M0 12 Q4 18 9 15" ${OPEN}/>
-      <path d="M-14 10 H-36 M-14 15 L-34 20 M14 10 H36 M14 15 L34 20" ${OPEN}/>
+      <path d="M-18 3 L-36 0 M-18 8 L-35 11 M18 3 L36 0 M18 8 L35 11" ${OPEN}/>
     </g>`;
   const bowl = pose === 'sip'
-    ? `<path d="M-104 -22 H-50 C-50 -2 -62 0 -77 0 C-92 0 -104 -2 -104 -22 Z" ${W}/><path d="M-98 -18 Q-77 -12 -56 -18" ${OPEN}/>` : '';
+    ? `<path d="M-118 -18 L-112 -3 Q-110 0 -88 0 Q-66 0 -64 -3 L-58 -18 Z" ${W}/><ellipse cx="-88" cy="-18" rx="30" ry="6" ${W}/>` : '';
   return `<path d="M${rx - 8} -14 C${rx + 40} -12 ${rx + 46} -62 ${rx + 26} -86 C${rx + 20} -92 ${rx + 12} -86 ${rx + 16} -80 C${rx + 30} -60 ${rx + 26} -28 ${rx - 8} -28 Z" ${W}/>
     <ellipse cx="0" cy="${-ry}" rx="${rx}" ry="${ry}" ${W}/>
     <ellipse cx="-18" cy="-5" rx="13" ry="7" ${W}/><ellipse cx="10" cy="-5" rx="13" ry="7" ${W}/>
@@ -223,6 +226,12 @@ function mat() {
     <path d="M-100 -12 H-110 M-100 -8 H-112 M-100 -4 H-110 M100 -12 H110 M100 -8 H112 M100 -4 H110" ${OPEN}/>`;
 }
 
+function rug() {
+  return `<ellipse cx="0" cy="-10" rx="108" ry="12" ${W}/>
+    <ellipse cx="0" cy="-10" rx="82" ry="7" ${W}/>
+    <path d="M-24 -10 L0 -15 L24 -10 L0 -5 Z" ${W}/>`;
+}
+
 function sun() {
   let rays = '';
   for (let i = 0; i < 8; i++) {
@@ -297,15 +306,19 @@ function bell() {
     <rect x="-46" y="-12" width="92" height="13" rx="6" ${W}/>`;
 }
 
-function cloud({ rain = true } = {}, w) {
+function cloud({ rain: falls = false } = {}, w) {
   let drops = '';
-  if (rain) {
+  if (falls) {
     for (const [x, y] of [[-46, 46], [-14, 62], [18, 46], [50, 62]]) {
       drops += `<path d="M${x} ${y} C${x - 7} ${y + 11} ${x - 4} ${y + 17} ${x} ${y + 17} C${x + 4} ${y + 17} ${x + 7} ${y + 11} ${x} ${y} Z" ${W}/>`;
     }
   }
   const shapes = [circle(-48, 8, 26), circle(-16, -10, 34), circle(24, -14, 30), circle(52, 8, 24), `<rect x="-60" y="4" width="118" height="30" rx="15" ${W}/>`];
   return `${union(shapes, w)}${drops}`;
+}
+
+function rain(_opts, w) {
+  return cloud({ rain: true }, w);
 }
 
 function tree(_opts, w) {
@@ -399,12 +412,172 @@ function sheep(_opts, w) {
     ${dot(-68, -78)}${dot(-56, -78)}<path d="M-66 -64 Q-62 -60 -58 -64" ${OPEN}/>`;
 }
 
+// Slice B additions: every noun in the generator and expanded bank gets its
+// own silhouette (rat, quiz, net, kit, keg, yak, fox, web, ring, king, drum,
+// crab, train, tray, jeep, seal).
+function rat() {
+  return `<path d="M30 -12 C58 -10 68 -26 60 -38 C56 -44 50 -38 54 -34 C60 -26 52 -18 30 -20 Z" ${W}/>
+    <ellipse cx="2" cy="-22" rx="34" ry="20" ${W}/>
+    <ellipse cx="-16" cy="-4" rx="9" ry="5" ${W}/><ellipse cx="14" cy="-4" rx="9" ry="5" ${W}/>
+    <circle cx="-22" cy="-44" r="11" ${W}/>
+    <path d="M-24 -36 C-44 -36 -56 -26 -58 -18 C-56 -10 -38 -8 -22 -14 Z" ${W}/>
+    <circle cx="-36" cy="-46" r="10" ${W}/>
+    ${dot(-38, -24, 2.6)}${dot(-58, -18, 3.2)}
+    <path d="M-48 -14 L-62 -10 M-48 -18 L-62 -20" ${OPEN}/>`;
+}
+
+function quiz() {
+  return `<rect x="-46" y="-56" width="92" height="112" rx="8" ${W}/>
+    <rect x="-20" y="-66" width="40" height="16" rx="5" ${W}/>
+    <path d="M-10 -30 C-10 -42 10 -42 10 -30 C10 -22 0 -20 0 -13" ${OPEN}/>${dot(0, -4, 3)}
+    <rect x="-30" y="8" width="14" height="14" rx="2" ${W}/><path d="M-8 15 H28" ${OPEN}/>
+    <rect x="-30" y="30" width="14" height="14" rx="2" ${W}/><path d="M-8 37 H28" ${OPEN}/>`;
+}
+
+function net() {
+  return `<rect x="-6" y="-58" width="12" height="58" rx="5" ${W}/>
+    <path d="M0 -120 C46 -120 68 -104 68 -88 C68 -72 46 -60 0 -60 Z" ${W}/>
+    <path d="M22 -114 Q30 -90 22 -66 M42 -106 Q48 -90 42 -74 M14 -90 H64" ${OPEN}/>
+    <ellipse cx="0" cy="-90" rx="14" ry="32" ${W}/><ellipse cx="0" cy="-90" rx="7" ry="25" ${W}/>`;
+}
+
+function kit() {
+  return `<path d="M-20 -64 V-76 Q-20 -82 -14 -82 H14 Q20 -82 20 -76 V-64 H10 V-73 H-10 V-64 Z" ${W}/>
+    <rect x="-48" y="-66" width="96" height="66" rx="10" ${W}/>
+    <path d="M-8 -50 H8 V-38 H20 V-22 H8 V-10 H-8 V-22 H-20 V-38 H-8 Z" ${W}/>`;
+}
+
+function keg() {
+  return `<path d="M-30 -76 H30 C46 -52 46 -24 30 0 H-30 C-46 -24 -46 -52 -30 -76 Z" ${W}/>
+    <path d="M-38 -56 H38 M-38 -20 H38 M-14 -69 Q-20 -38 -14 0 M14 -69 Q20 -38 14 0" ${OPEN}/>
+    <ellipse cx="0" cy="-76" rx="30" ry="7" ${W}/>`;
+}
+
+function yak() {
+  return `<path d="M52 -58 C66 -54 70 -36 62 -24" ${OPEN}/>
+    <rect x="-32" y="-38" width="14" height="38" rx="5" ${W}/><rect x="-12" y="-38" width="14" height="38" rx="5" ${W}/>
+    <rect x="20" y="-38" width="14" height="38" rx="5" ${W}/><rect x="38" y="-38" width="14" height="38" rx="5" ${W}/>
+    <path d="M-42 -58 C-42 -92 56 -90 56 -54 V-28 L42 -20 L28 -28 L14 -20 L0 -28 L-14 -20 L-28 -28 L-42 -22 Z" ${W}/>
+    <path d="M-62 -86 C-76 -96 -76 -112 -62 -114 C-66 -104 -62 -94 -52 -88 Z" ${W}/>
+    <path d="M-26 -86 C-12 -96 -12 -112 -26 -114 C-22 -104 -26 -94 -36 -88 Z" ${W}/>
+    <circle cx="-44" cy="-70" r="24" ${W}/>
+    <ellipse cx="-48" cy="-58" rx="14" ry="10" ${W}/>${dot(-53, -58, 2.5)}${dot(-43, -58, 2.5)}
+    ${dot(-48, -76)}`;
+}
+
+function fox() {
+  return `<path d="M28 -30 C56 -32 82 -48 78 -76 C66 -82 44 -68 24 -44 Z" ${W}/>
+    <path d="M56 -68 L62 -60 L70 -62" ${OPEN}/>
+    <rect x="-28" y="-38" width="12" height="38" rx="5" ${W}/><rect x="-12" y="-38" width="12" height="38" rx="5" ${W}/>
+    <rect x="18" y="-38" width="12" height="38" rx="5" ${W}/><rect x="32" y="-38" width="12" height="38" rx="5" ${W}/>
+    <ellipse cx="6" cy="-48" rx="42" ry="24" ${W}/>
+    <path d="M-54 -84 L-52 -112 L-34 -92 Z" ${W}/><path d="M-26 -90 L-16 -114 L-12 -84 Z" ${W}/>
+    <path d="M-14 -74 C-14 -90 -26 -96 -40 -96 C-52 -96 -58 -88 -62 -80 L-74 -70 L-58 -62 C-52 -54 -44 -52 -34 -52 C-20 -52 -14 -60 -14 -74 Z" ${W}/>
+    ${dot(-42, -78)}${dot(-74, -70, 3.2)}`;
+}
+
+function webRing(r) {
+  const pts = Array.from({ length: 8 }, (_, i) => {
+    const a = (i * Math.PI) / 4;
+    return [+(Math.cos(a) * r).toFixed(1), +(Math.sin(a) * r).toFixed(1)];
+  });
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < 8; i++) {
+    const [nx, ny] = pts[(i + 1) % 8];
+    const ma = ((i + 0.5) * Math.PI) / 4;
+    d += ` Q${(Math.cos(ma) * r * 0.82).toFixed(1)} ${(Math.sin(ma) * r * 0.82).toFixed(1)} ${nx} ${ny}`;
+  }
+  return `<path d="${d} Z" ${W}/>`;
+}
+
+function web() {
+  return `${webRing(58)}${webRing(38)}${webRing(19)}
+    <path d="M-58 0 H58 M0 -58 V58 M-41 -41 L41 41 M-41 41 L41 -41" ${OPEN}/>
+    <circle cx="0" cy="0" r="7" ${W}/>`;
+}
+
+function ring() {
+  return `<path d="M-14 -58 L-24 -72 L-12 -86 H12 L24 -72 L14 -58 Z" ${W}/>
+    <path d="M-24 -72 H24 M-12 -86 L-6 -72 M12 -86 L6 -72" ${OPEN}/>
+    <circle cx="0" cy="-30" r="30" ${W}/><circle cx="0" cy="-30" r="18" ${W}/>`;
+}
+
+function king() {
+  return `<ellipse cx="-14" cy="-5" rx="12" ry="6" ${W}/><ellipse cx="14" cy="-5" rx="12" ry="6" ${W}/>
+    <path d="M-38 -8 L-28 -116 Q-26 -126 -12 -126 H12 Q26 -126 28 -116 L38 -8 Z" ${W}/>
+    <rect x="-10" y="-126" width="20" height="118" ${W}/>
+    ${dot(0, -96, 3)}${dot(0, -70, 3)}${dot(0, -44, 3)}
+    <circle cx="-34" cy="-78" r="8" ${W}/><circle cx="34" cy="-78" r="8" ${W}/>
+    <circle cx="0" cy="-152" r="26" ${W}/>
+    <path d="M-26 -168 L-28 -196 L-12 -180 L0 -198 L12 -180 L28 -196 L26 -168 Z" ${W}/>
+    ${dot(-9, -150)}${dot(9, -150)}<path d="M-9 -139 Q0 -132 9 -139" ${OPEN}/>`;
+}
+
+function drum() {
+  return `<path d="M-46 -62 H46 V-10 Q46 0 0 0 Q-46 0 -46 -10 Z" ${W}/>
+    <path d="M-46 -46 L-24 -12 L0 -46 L24 -12 L46 -46" ${OPEN}/>
+    <ellipse cx="0" cy="-62" rx="46" ry="11" ${W}/>
+    <path d="M-42 -88 L-8 -66 M42 -88 L8 -66" ${OPEN}/>
+    <circle cx="-8" cy="-66" r="5.5" ${W}/><circle cx="8" cy="-66" r="5.5" ${W}/>`;
+}
+
+function crab() {
+  return `<path d="M-34 -18 L-54 -4 M-38 -28 L-60 -20 M34 -18 L54 -4 M38 -28 L60 -20" ${OPEN}/>
+    <path d="M-28 -40 L-44 -56 M28 -40 L44 -56" ${OPEN}/>
+    <path d="M-44 -54 C-62 -54 -64 -76 -46 -76 L-44 -64 L-34 -72 C-28 -62 -34 -50 -44 -54 Z" ${W}/>
+    <path d="M44 -54 C62 -54 64 -76 46 -76 L44 -64 L34 -72 C28 -62 34 -50 44 -54 Z" ${W}/>
+    <ellipse cx="0" cy="-26" rx="40" ry="24" ${W}/>
+    <rect x="-16" y="-58" width="6" height="14" ${W}/><rect x="10" y="-58" width="6" height="14" ${W}/>
+    <circle cx="-13" cy="-62" r="8" ${W}/><circle cx="13" cy="-62" r="8" ${W}/>
+    ${dot(-13, -62, 3)}${dot(13, -62, 3)}
+    <path d="M-12 -20 Q0 -12 12 -20" ${OPEN}/>`;
+}
+
+function train() {
+  return `<rect x="44" y="-116" width="22" height="36" rx="3" ${W}/>
+    <rect x="38" y="-122" width="34" height="10" rx="4" ${W}/>
+    <rect x="-100" y="-108" width="76" height="88" rx="6" ${W}/>
+    <rect x="-108" y="-114" width="92" height="10" rx="4" ${W}/>
+    <rect x="-84" y="-92" width="44" height="32" rx="4" ${W}/>
+    <rect x="-24" y="-82" width="108" height="62" rx="8" ${W}/>
+    <path d="M84 -20 L104 -20 L84 -44 Z" ${W}/>
+    <circle cx="-64" cy="-20" r="20" ${W}/><circle cx="-64" cy="-20" r="7" ${W}/>
+    <circle cx="8" cy="-18" r="18" ${W}/><circle cx="8" cy="-18" r="6" ${W}/>
+    <circle cx="58" cy="-18" r="18" ${W}/><circle cx="58" cy="-18" r="6" ${W}/>`;
+}
+
+function tray() {
+  return `<path d="M-74 -18 C-74 -30 -54 -30 -54 -18" ${OPEN}/>
+    <path d="M54 -18 C54 -30 74 -30 74 -18" ${OPEN}/>
+    <path d="M-68 -18 H68 L58 0 H-58 Z" ${W}/>
+    <path d="M-56 -10 H56" ${OPEN}/>`;
+}
+
+function jeep() {
+  return `<rect x="-104" y="-76" width="16" height="38" rx="6" ${W}/>
+    <path d="M12 -96 L28 -58 H18 L4 -96 Z" ${W}/>
+    <path d="M-88 -20 V-62 H28 L34 -58 H84 Q92 -58 92 -50 V-20 Z" ${W}/>
+    <path d="M-58 -62 V-74 H-34 V-62 Z" ${W}/>
+    <circle cx="-50" cy="-20" r="20" ${W}/><circle cx="-50" cy="-20" r="7" ${W}/>
+    <circle cx="52" cy="-20" r="20" ${W}/><circle cx="52" cy="-20" r="7" ${W}/>`;
+}
+
+function seal() {
+  return `<path d="M42 -16 L66 -36 L60 -14 L72 -4 L42 -4 Z" ${W}/>
+    <path d="M-46 -58 C-46 -20 -36 -4 -10 -4 H46 C50 -22 30 -36 4 -40 C-14 -42 -20 -50 -22 -60 Z" ${W}/>
+    <circle cx="-34" cy="-64" r="21" ${W}/>
+    <ellipse cx="-12" cy="-5" rx="18" ry="6.5" ${W}/>
+    ${dot(-40, -70)}${dot(-53, -61, 3.2)}
+    <path d="M-47 -55 Q-41 -50 -35 -55 M-50 -57 L-66 -55 M-50 -52 L-65 -47" ${OPEN}/>`;
+}
+
 // ---- the library -------------------------------------------------------------
 // kind -> (options, stroke width at this scale) => markup in local units.
 export const PICTURES = {
   person, cat, dog, pig, hen, duck, frog, fish, bee,
-  tap, cap: capThing, hat, map, mat, sun, bus, van, cup, pot, pan, bag, box, bed, ship, bell, cloud, tree,
+  tap, cap: capThing, hat, map, mat, rug, sun, bus, van, cup, pot, pan, bag, box, bed, ship, bell, cloud, rain, tree,
   chick, moth, bath, seat, leaf, pail, jug, dish, rock, log, sock, sheep,
+  rat, quiz, net, kit, keg, yak, fox, web, ring, king, drum, crab, train, tray, jeep, seal,
 };
 
 export const PICTURE_KINDS = Object.keys(PICTURES);

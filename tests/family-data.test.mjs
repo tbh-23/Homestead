@@ -600,13 +600,13 @@ describe('family data safety in the store', { concurrency: false }, () => {
     badPrefs.reading[id].prefs.layout = 'scroll';
     assert.equal(store.inspectImport(badPrefs).ok, false);
 
-    // A picture the library does not draw is refused too, by import and by the
-    // server, so a saved book can never break the books page; an inherited
-    // name ("constructor") is not a picture either.
+    // The server refuses any picture the library does not draw (including an
+    // inherited name like "constructor" or "__proto__"). Import refuses those
+    // prototype names too, while stripping a safe future kind ("kite") so a
+    // backup from a newer Harrington keeps the rest of the family document.
     for (const kind of ['kite', 'constructor', '__proto__']) {
       const odd = JSON.parse(JSON.stringify(exported));
       odd.reading[id].library[0].book.cover = [{ kind }];
-      assert.equal(store.inspectImport(odd).ok, false, kind);
       const current = await serverState();
       const res = await realFetch(`${baseUrl}/api/state`, {
         method: 'PUT',
@@ -614,6 +614,18 @@ describe('family data safety in the store', { concurrency: false }, () => {
         body: JSON.stringify({ ...current, reading: odd.reading, writeId: 'other-device' }),
       });
       assert.equal(res.status, 422, `the server refuses ${kind}`);
+      const check = store.inspectImport(odd);
+      if (kind === 'kite') {
+        assert.equal(check.ok, true);
+        assert.equal(check.picturesDropped, 1);
+        assert.equal(await store.importDocument(odd), true);
+        const kept = store.readingFor(id).library;
+        assert.equal(kept.length, 2);
+        assert.equal(kept[0].book.title, BANK[0].title);
+        assert.deepEqual(kept[0].book.cover, []);
+      } else {
+        assert.equal(check.ok, false, kind);
+      }
     }
     // A grapheme longer than normalizeReading keeps is refused, not dropped.
     const long = JSON.parse(JSON.stringify(exported));

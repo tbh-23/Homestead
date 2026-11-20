@@ -330,8 +330,8 @@ ACARA's notice for the Australian Curriculum content is in the README.
 ## Decodable books
 
 Printable reading books that use only the sounds your child can already read,
-to color in, fold and staple. They need no AI provider, and nothing about them
-leaves this computer.
+to colour in, fold and staple. They need no AI provider, and nothing about
+them leaves this computer.
 
 **Set the level.** Open **Reading & books** in the sidebar (on a phone:
 **Reading** beside the learner in the learner selector). The **Reading**
@@ -362,8 +362,8 @@ word your child can read, newest sounds first, with **Print booklet**,
 shown faded with what they need ("needs: w ck sh").
 
 **Make a new book** writes a new six-sentence story (or ten, for a 12-page
-book) from the sounds your child knows, favoring the sounds you pick to
-practice (the newest set to start with). **Shuffle** writes another. Every
+book) from the sounds your child knows, favouring the sounds you pick to
+practise (the newest set to start with). **Shuffle** writes another. Every
 word is checked against the ticks before the book is shown. The story's
 names come from a made-up list, and any that matches the first name of a
 learner in your family is left out (this is checked in the browser; nothing
@@ -378,7 +378,7 @@ double-sided, flip on the short edge, fold the stack in half and staple. Each
 book has a cover with its title, sounds, a picture and "This book belongs to",
 numbered story pages with one sentence and a picture each, and a back page
 with the sounds, tricky words, the words to sound out and tips for reading it
-together. The pictures are black outlines to color in.
+together. The pictures are black outlines to colour in.
 
 ## Records and recordings
 

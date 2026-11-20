@@ -290,3 +290,59 @@ test('an older export is checked as it will be saved: what the format 3 repair f
   // The same file at the current format is refused, with the reason.
   assert.match(store.inspectImport({ ...doc, schemaVersion: SCHEMA_VERSION }).error, /has a name longer than 60 characters/);
 });
+
+test('validateDocument gives field-specific errors for reading setup and saved books', () => {
+  const withReading = (patch) => {
+    const doc = current();
+    const base = {
+      sequence: 'school-2026',
+      graphemes: ['s', 'a', 't', 'p'],
+      clusters: false,
+      tricky: ['the'],
+      custom: { graphemes: [], tricky: [] },
+      prefs: { nameOnCover: true, layout: 'booklet' },
+      library: [{
+        id: 'lib_1',
+        savedAt: 1_700_000_000_000,
+        book: {
+          title: 'Tap, tap',
+          graphemes: ['t', 'a', 'p', 's'],
+          focus: ['t', 'a', 'p', 's'],
+          tricky: [],
+          cover: [{ kind: 'tap', x: 200, y: 130, scale: 1.2 }],
+          pages: [{ text: 'Tap.', scene: [{ kind: 'tap', x: 200, y: 130 }] }],
+        },
+      }],
+    };
+    doc.reading = { s_new: base };
+    patch(doc.reading.s_new);
+    return doc;
+  };
+
+  assert.equal(validateDocument(withReading(() => {})), null);
+
+  const cases = [
+    ['reading setup not an object', (d) => { d.reading.s_new = []; }, 'Sample Fourteen\'s reading setup is not in the expected shape.'],
+    ['long reading grapheme', (d) => { d.reading.s_new.graphemes = ['s', 'eighs']; }, 'Sample Fourteen\'s reading graphemes are not a list of sounds of at most 4 characters.'],
+    ['long tricky word', (d) => { d.reading.s_new.tricky = ['x'.repeat(21)]; }, 'Sample Fourteen\'s tricky words are not a list of words of at most 20 characters.'],
+    ['non-boolean clusters', (d) => { d.reading.s_new.clusters = 'yes'; }, 'Sample Fourteen\'s adjacent-consonants setting is not true or false.'],
+    ['non-text sequence', (d) => { d.reading.s_new.sequence = 2; }, 'Sample Fourteen\'s reading sequence is not text.'],
+    ['invalid print layout', (d) => { d.reading.s_new.prefs.layout = 'scroll'; }, 'Sample Fourteen\'s reading print layout is not "booklet" or "flat".'],
+    ['non-boolean nameOnCover', (d) => { d.reading.s_new.prefs.nameOnCover = 'yes'; }, 'Sample Fourteen\'s cover-name setting is not true or false.'],
+    ['reading library not a list', (d) => { d.reading.s_new.library = {}; }, 'Sample Fourteen\'s reading library is not a list of at most 100 books.'],
+    ['unknown picture on cover', (d) => { d.reading.s_new.library[0].book.cover = [{ kind: 'dragon' }]; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) uses an unknown picture (“dragon”) in its cover scene.'],
+    ['prototype picture on page', (d) => { d.reading.s_new.library[0].book.pages[0].scene = [{ kind: 'constructor' }]; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) uses an unknown picture (“constructor”) in its page 1 scene.'],
+    ['non-numeric scene coordinate', (d) => { d.reading.s_new.library[0].book.pages[0].scene = [{ kind: 'tap', x: 'left' }]; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) has a x on item 1 in its page 1 scene that is not a number.'],
+    ['malformed page text', (d) => { d.reading.s_new.library[0].book.pages[0].text = 42; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) has page 1 text that is not text of at most 300 characters.'],
+    ['empty pages list', (d) => { d.reading.s_new.library[0].book.pages = []; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) must have 1 to 16 pages.'],
+    ['blank book title', (d) => { d.reading.s_new.library[0].book.title = '   '; }, 'A saved book in the file\'s reading library for Sample Fourteen (library item 1) has a title that is not text of 1 to 300 characters.'],
+    ['missing book id', (d) => { d.reading.s_new.library[0].id = ''; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) has an id that is not text of 1 to 80 characters.'],
+    ['invalid book graphemes', (d) => { d.reading.s_new.library[0].book.graphemes = ['toolong']; }, 'A saved book in the file\'s reading library for Sample Fourteen (“Tap, tap”) has graphemes that are not a list of sounds of at most 4 characters.'],
+  ];
+
+  for (const [label, mutate, expected] of cases) {
+    const doc = withReading(() => {});
+    mutate(doc);
+    assert.equal(validateDocument(doc), expected, label);
+  }
+});

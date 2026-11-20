@@ -9,7 +9,7 @@ import { el, esc, fmtDate, keepFocus, toast } from '../ui.js';
 import { BANK } from '../phonics/bank.js';
 import { generateBook } from '../phonics/generator.js';
 import { renderScene } from '../phonics/pictures.js';
-import { bookFacts, booksFor, defaultFocus, describeMissing, inTeachingOrder, knownCode, readingSummary } from '../phonics/reading.js';
+import { bookFacts, booksFor, defaultFocus, describeMissing, inTeachingOrder, knownCode, readingSummary, stageOf } from '../phonics/reading.js';
 import { printBook } from './bookprint.js';
 
 const CARD = 'bg-paper-card border border-paper-line rounded-2xl p-4';
@@ -37,7 +37,7 @@ function bookCard(book, { student, reading, actions = ['booklet', 'flat', 'save'
   </article>`);
   const bar = card.querySelector('.actions');
   const add = (label, icon, fn) => {
-    const b = el(`<button class="${BTN_SOFT}"><i data-lucide="${icon}" class="w-4 h-4"></i>${label}</button>`);
+    const b = el(`<button class="${BTN_SOFT}"><i data-lucide="${esc(icon)}" class="w-4 h-4"></i>${esc(label)}</button>`);
     b.onclick = fn;
     bar.appendChild(b);
   };
@@ -116,9 +116,9 @@ function makeSection(student, reading, code) {
   const known = inTeachingOrder([...code.graphemes]);
   const section = el(`<section aria-labelledby="make-h" class="mb-8">
     <h2 id="make-h" class="font-display text-xl font-600 mb-1">Make a new book</h2>
-    <p class="text-sm text-ink-soft mb-3">A new story from the sounds ${esc(student.name)} knows. Pick the sounds to practice; Shuffle writes another one. No AI: every word is checked before you see it.</p>
+    <p class="text-sm text-ink-soft mb-3">A new story from the sounds ${esc(student.name)} knows. Pick the sounds to practise; Shuffle writes another one. No AI: every word is checked before you see it.</p>
     <div class="${CARD} space-y-3">
-      <fieldset><legend class="text-xs text-ink-faint mb-1.5">Sounds to practice</legend><div id="focus" class="flex flex-wrap gap-2"></div></fieldset>
+      <fieldset><legend class="text-xs text-ink-faint mb-1.5">Sounds to practise</legend><div id="focus" class="flex flex-wrap gap-2"></div></fieldset>
       <fieldset><legend class="text-xs text-ink-faint mb-1.5">Length</legend><div class="flex gap-4">
         <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" id="len-8" value="6" class="accent-[#3f6b3b]" ${draft.pages === 6 ? 'checked' : ''}>8 pages</label>
         <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="len" id="len-12" value="10" class="accent-[#3f6b3b]" ${draft.pages === 10 ? 'checked' : ''}>12 pages</label>
@@ -153,7 +153,10 @@ function makeSection(student, reading, code) {
     const book = generateBook(code, { focus: draft.focus, focusClusters: draft.clusters && !draft.focus.length, pages: draft.pages, seed: draft.seed, avoidNames });
     const out = section.querySelector('#made');
     if (!book) {
-      out.appendChild(el(`<p class="text-sm text-ink-soft">Not enough sounds to write a story yet. Tick a few more on the reading setup (set 1 is enough to start).</p>`));
+      const msg = stageOf(reading) >= 1
+        ? 'Every story name these sounds can spell matches a learner here. Tick another set of sounds on the reading setup so the story can use a different name.'
+        : 'Not enough sounds to write a story yet. Tick a few more on the reading setup (set 1 is enough to start).';
+      out.appendChild(el(`<p class="text-sm text-ink-soft">${esc(msg)}</p>`));
     } else {
       const card = bookCard(book, { student, reading, actions: ['booklet', 'flat', 'save'] });
       card.querySelector('.actions').before(el(`<ol class="made-pages text-sm text-ink mt-2 space-y-0.5 list-decimal pl-5">${book.pages.map(p => `<li>${esc(p.text)}</li>`).join('')}</ol>`));
