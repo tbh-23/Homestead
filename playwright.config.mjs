@@ -16,16 +16,19 @@
 // Servers are never reused: a Harrington already listening on these ports could
 // be a real family's, and every test overwrites /api/state.
 import { defineConfig, devices } from '@playwright/test';
+import { resolveChromiumExecutable } from './tests/e2e/support/chromium.mjs';
 import { PORTS, URLS } from './tests/e2e/support/env.mjs';
 
 const CI = !!process.env.CI;
 // Record every test when refreshing the docs; otherwise only the walkthroughs.
 const videoEverywhere = process.env.E2E_VIDEO === 'all';
+const executablePath = resolveChromiumExecutable();
 
 const launchOptions = {
-  // A mismatched local Playwright/Chromium pair can still run: point
-  // E2E_CHROMIUM at any Chromium or headless_shell binary.
-  ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}),
+  // A mismatched local Playwright/Chromium pair still runs automatically:
+  // resolveChromiumExecutable() checks E2E_CHROMIUM, then Playwright's default
+  // revision, then any installed chromium_headless_shell/chromium in the cache.
+  ...(executablePath ? { executablePath } : {}),
   // Fake microphone so the voice recorder works headless.
   args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
 };

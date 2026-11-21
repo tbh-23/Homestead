@@ -23,81 +23,56 @@ concurrency:
 
 jobs:
   e2e:
-    # ubuntu-latest moved to 26.04, where `npx playwright install --with-deps chromium` fails for our pinned Playwright; revisit when Playwright supports it.
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, macOS, ARM64, harrington]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          clean: false
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (cached locally by lockfile hash)
+        run: |
+          set -eu
+          LOCK_SHA="$(shasum -a 256 package-lock.json | awk '{print $1}')"
+          if [ ! -d node_modules ] || [ ! -f node_modules/.lock-sha256 ] || [ "$(cat node_modules/.lock-sha256)" != "$LOCK_SHA" ]; then
+            npm ci --prefer-offline --no-audit
+            printf '%s\n' "$LOCK_SHA" > node_modules/.lock-sha256
+          fi
 
-      - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
-
-      # The Marble taxonomy is downloaded at the commit pinned in
-      # lib/taxonomy-pin.mjs (TAXONOMY_PIN.revision) and cached, never
-      # committed. Changing the pin changes the file hash, so the key follows it.
-      - name: Cache the taxonomy download
-        uses: actions/cache@v4
-        with:
-          path: tests/e2e/.cache
-          key: marble-taxonomy-${{ hashFiles('lib/taxonomy-pin.mjs', 'tests/e2e/support/taxonomy.mjs') }}
+      - name: Verify or install Chromium for Playwright
+        run: |
+          node --input-type=module -e "
+            import { existsSync } from 'node:fs';
+            import { chromium } from '@playwright/test';
+            import { resolveChromiumExecutable } from './tests/e2e/support/chromium.mjs';
+            const resolved = resolveChromiumExecutable();
+            const builtin = (() => { try { return chromium.executablePath(); } catch { return ''; } })();
+            if (resolved || (builtin && existsSync(builtin))) {
+              console.log('Using local Playwright Chromium:', resolved || builtin);
+              process.exit(0);
+            }
+            process.exit(1);
+          " || npx playwright install chromium
 
       - name: Run the end-to-end suite
         run: npm run e2e
 
-      - name: Upload the HTML report
+      - name: Upload the HTML report on failure
         id: report
-        if: ${{ !cancelled() }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 14
+          retention-days: 7
 
-      - name: Upload screenshots
-        id: screenshots
+      - name: Summarize end-to-end results
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-screenshots
-          path: docs/e2e/screenshots/
-          retention-days: 14
-
-      - name: Upload videos
-        id: videos
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-videos
-          path: |
-            test-results/**/*.webm
-            docs/e2e/recordings/
-          retention-days: 14
-          if-no-files-found: ignore
-
-      # One click from the pull request's checks to the report and recordings.
-      - name: Link the artifacts in the job summary
-        if: ${{ !cancelled() }}
-        env:
-          REPORT_URL: ${{ steps.report.outputs.artifact-url }}
-          SCREENSHOTS_URL: ${{ steps.screenshots.outputs.artifact-url }}
-          VIDEOS_URL: ${{ steps.videos.outputs.artifact-url }}
         run: |
           {
-            echo "## End-to-end artifacts (kept 14 days)"
-            echo
-            [ -n "$REPORT_URL" ] && echo "- [HTML report]($REPORT_URL) (unzip, then \`npx playwright show-report <folder>\`)"
-            [ -n "$SCREENSHOTS_URL" ] && echo "- [Screenshots]($SCREENSHOTS_URL)"
-            [ -n "$VIDEOS_URL" ] && echo "- [Recordings]($VIDEOS_URL): the three walkthrough videos"
+            echo "## End-to-end results (local self-hosted runner)"
             echo
             if [ -f test-results/results.json ]; then
               node -e 'const s=require("./test-results/results.json").stats; console.log(`${s.expected} passed, ${s.unexpected} failed, ${s.flaky} flaky, ${s.skipped} skipped in ${Math.round(s.duration/1000)} s`)'

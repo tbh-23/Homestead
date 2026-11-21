@@ -14,6 +14,8 @@
     "build:figures": "node scripts/build-figures.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "check": "node --test tests/dead-code.test.mjs tests/copy.test.mjs tests/ai-status*.test.mjs",
+    "ci": "node scripts/ci-local.mjs",
+    "ci:quick": "node scripts/ci-local.mjs --quick",
     "e2e": "node tests/e2e/run.mjs",
     "e2e:ui-docs": "node tests/e2e/run.mjs --refresh-docs",
     "e2e:mock-ai": "node tests/e2e/mock-ai-server.mjs",
