@@ -6,20 +6,42 @@
 // upstream manifest. It writes nothing. The server needs no help moving to a
 // new pin: it replaces any cached file that does not match on first use. See
 // docs/CURRICULUM.md.
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { TAXONOMY_PIN, sha256Hex } from '../lib/taxonomy-pin.mjs';
+import { CACHE_DIR, localSeedDirs } from '../tests/e2e/support/taxonomy.mjs';
+
+const remoteOnly = process.argv.includes('--remote');
+const candidateDirs = remoteOnly ? [] : [CACHE_DIR, ...localSeedDirs()];
+
+async function readLocalVerified(name, expected) {
+  for (const dir of candidateDirs) {
+    try {
+      const body = await readFile(join(dir, name));
+      if ((await sha256Hex(body)) === expected) return body;
+    } catch {
+      // Try next local directory before falling back to upstream fetch.
+    }
+  }
+  return null;
+}
 
 const bodies = new Map();
 let failed = false;
 for (const [name, expected] of Object.entries(TAXONOMY_PIN.files)) {
-  let body;
-  try {
-    const res = await fetch(`${TAXONOMY_PIN.upstream}/${name}`, { signal: AbortSignal.timeout(60_000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    body = Buffer.from(await res.arrayBuffer());
-  } catch (error) {
-    console.error(`✗ ${name}: could not download (${error.message})`);
-    failed = true;
-    continue;
+  let body = await readLocalVerified(name, expected);
+  let source = 'local cache';
+  if (!body) {
+    source = 'upstream';
+    try {
+      const res = await fetch(`${TAXONOMY_PIN.upstream}/${name}`, { signal: AbortSignal.timeout(60_000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      body = Buffer.from(await res.arrayBuffer());
+    } catch (error) {
+      console.error(`✗ ${name}: could not download (${error.message})`);
+      failed = true;
+      continue;
+    }
   }
   const actual = await sha256Hex(body);
   if (actual !== expected) {
@@ -27,7 +49,7 @@ for (const [name, expected] of Object.entries(TAXONOMY_PIN.files)) {
     failed = true;
     continue;
   }
-  console.log(`✓ ${name} (${body.length.toLocaleString('en-US')} bytes)`);
+  console.log(`✓ ${name} (${body.length.toLocaleString('en-US')} bytes, ${source})`);
   bodies.set(name, body);
 }
 
