@@ -19,6 +19,9 @@ tagged a release yet; everything below is on `main`.
 - Normalised `/api/audio/` uploads and `.meta.json` sidecars to an explicit `audio/*` allowlist, falling back to `application/octet-stream` with `Content-Security-Policy: sandbox`, `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` (G2, HAR-47).
 - Raised the `HARRINGTON_ACCESS_TOKEN` startup entropy floor (22+ printable ASCII characters, mixed classes, 8+ distinct characters), throttled repeated `/login` failures per socket address with exponential backoff (`429 Retry-After`) and logged failures without tokens (G3, HAR-48).
 
+### Fixed
+- Hardened server-side security defaults across write guards, headers, file permissions, note opt-in accounting and AI provider URLs: enforced `Sec-Fetch-Site` and `application/json` checks across `/api/ai`, `/api/lessons/`, `/api/audio/` and `/api/state` (G5, HAR-50); added `Referrer-Policy: no-referrer` on all responses and tightened the app shell `Content-Security-Policy` (G6, HAR-51); restricted private data directories to `0700` and saved files and backups to `0600` (G7, HAR-52); limited `includeNotes` to `analysis` and `review` with an opt-in count in signed-in `/api/health` (G9, HAR-54); and refused plain `http://` AI base URLs on public hosts while still allowing loopback, Docker and local network addresses (G14, HAR-59).
+
 ### Added (earlier)
 - Decodable books (HAR-45), with no AI provider. A learner's **Reading**
   section (sidebar **Reading & books**, or **Reading** in the learner

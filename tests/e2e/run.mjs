@@ -26,7 +26,9 @@ if (refresh) {
 }
 
 const bin = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'playwright.cmd' : 'playwright');
-const result = spawnSync(bin, ['test', ...passThrough], { cwd: root, env, stdio: 'inherit' });
+const runnerCmd = process.platform === 'darwin' ? 'caffeinate' : bin;
+const runnerArgs = process.platform === 'darwin' ? ['-i', bin, 'test', ...passThrough] : ['test', ...passThrough];
+const result = spawnSync(runnerCmd, runnerArgs, { cwd: root, env, stdio: 'inherit' });
 
 const copied = await collectRecordings({ clean: true });
 
