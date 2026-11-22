@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isFamilyMember() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['simonguerin@gmail.com'];
+    }
+
+    function isSafeAudioType() {
+      return request.resource.contentType in [
+        'audio/webm',
+        'audio/ogg',
+        'audio/mp4',
+        'audio/mpeg',
+        'audio/wav',
+        'audio/wave',
+        'audio/x-wav',
+        'audio/aac',
+        'audio/x-m4a',
+        'audio/flac'
+      ];
+    }
+
+    match /families/{familyId}/audio/{audioId} {
+      allow read, delete: if isFamilyMember()
+        && familyId == 'default'
+        && audioId.size() >= 1
+        && audioId.size() <= 500;
+
+      allow write: if isFamilyMember()
+        && familyId == 'default'
+        && audioId.size() >= 1
+        && audioId.size() <= 500
+        && request.resource != null
+        && request.resource.size <= 100 * 1024 * 1024
+        && isSafeAudioType();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
