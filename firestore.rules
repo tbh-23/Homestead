@@ -1,0 +1,231 @@
+rules_version = '2';
+
+// =============================================================================
+// Assumed Data Model
+// =============================================================================
+//
+// Harrington is a single-family learning platform. Access across the entire
+// database is denied by default and granted exclusively to authenticated users
+// whose verified email belongs to the family allowlist.
+//
+// Collection: families
+// Document ID: 'default'
+// Fields:
+//   - schemaVersion: int (required, 1..10) - data format version
+//   - version: int (required, >= 1; must equal resource.data.version + 1 on update)
+//   - updatedAt: int (required, >= 0) - epoch milliseconds of last save
+//   - writeId: string (optional, 1..64 chars) - client write identifier
+//   - students: list (required, max 20 items) - learner profile objects
+//   - activeStudentId: string | null (optional, 1..64 chars) - active learner id
+//   - graphView: string (optional, 'atlas' | 'list') - curriculum view mode
+//   - notifications: list (optional, max 200 items) - parent notices
+//   - dismissedAlerts: map | null (optional) - dismissed alert timestamps
+//   - settings: map | null (optional) - family preferences (hashed PIN, calendar)
+//   - progress, records, tests, plan, challenges, adaptations, suggestions,
+//     recall, practice, activity, game, daily, interests, requests, levelset,
+//     reading: map (optional) - per-learner data maps keyed by learner id
+//   Note: Forward-compatible top-level unknown fields from newer Harrington
+//   versions are intentionally preserved (see src/js/schema.js & store.js).
+//   Deletion of /families/default is unconditionally forbidden.
+//
+// Subcollection: families/default/lessons
+// Document ID: lessonId (string, 1..500 chars)
+// Fields (strictly limited to these 3):
+//   - key: string (required, 1..500 chars) - cache lookup key
+//   - payload: map (required, max 100 top-level keys) - cached AI artifact
+//   - updatedAt: int (required, >= 0) - epoch milliseconds of cache write
+//
+// Subcollection: families/default/settings
+// Document ID: 'ai'
+// Fields (strictly limited to these 6):
+//   - updatedAt: int (required, >= 0) - epoch milliseconds of last update
+//   - baseUrl: string | null (optional, <= 500 chars, http:// or https:// or '')
+//   - model: string | null (optional, <= 200 chars) - AI model identifier
+//   - apiKey: string | null (optional, <= 512 chars) - provider API key
+//   - timeoutMs: int | null (optional, 1..3600000) - request timeout in ms
+//   - capabilities: list | null (optional, max 20 items, known AI capabilities)
+//
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // Helper Functions
+    // =========================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isFamilyMember() {
+      return isAuthenticated()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['simonguerin@gmail.com'];
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isOptionalMap(data, field) {
+      return !(field in data) || data[field] is map;
+    }
+
+    function isOptionalNullableMap(data, field) {
+      return !(field in data) || data[field] == null || data[field] is map;
+    }
+
+    function isOptionalNullableString(data, field, minLen, maxLen) {
+      return !(field in data)
+        || data[field] == null
+        || (data[field] is string
+            && data[field].size() >= minLen
+            && data[field].size() <= maxLen);
+    }
+
+    // =========================================================================
+    // Domain Validators (invoked on both create and update)
+    // =========================================================================
+
+    function isValidFamilyState(data) {
+      return hasRequiredFields(['schemaVersion', 'version', 'updatedAt', 'students'])
+        && data.schemaVersion is int
+        && data.schemaVersion >= 1
+        && data.schemaVersion <= 10
+        && data.version is int
+        && data.version >= 1
+        && data.updatedAt is int
+        && data.updatedAt >= 0
+        && data.students is list
+        && data.students.size() <= 20
+        && (!('writeId' in data)
+            || (data.writeId is string
+                && data.writeId.size() >= 1
+                && data.writeId.size() <= 64))
+        && isOptionalNullableString(data, 'activeStudentId', 1, 64)
+        && (!('graphView' in data) || data.graphView in ['atlas', 'list'])
+        && (!('notifications' in data)
+            || (data.notifications is list && data.notifications.size() <= 200))
+        && isOptionalNullableMap(data, 'dismissedAlerts')
+        && isOptionalNullableMap(data, 'settings')
+        && isOptionalMap(data, 'progress')
+        && isOptionalMap(data, 'records')
+        && isOptionalMap(data, 'tests')
+        && isOptionalMap(data, 'plan')
+        && isOptionalMap(data, 'challenges')
+        && isOptionalMap(data, 'adaptations')
+        && isOptionalMap(data, 'suggestions')
+        && isOptionalMap(data, 'recall')
+        && isOptionalMap(data, 'practice')
+        && isOptionalMap(data, 'activity')
+        && isOptionalMap(data, 'game')
+        && isOptionalMap(data, 'daily')
+        && isOptionalMap(data, 'interests')
+        && isOptionalMap(data, 'requests')
+        && isOptionalMap(data, 'levelset')
+        && isOptionalMap(data, 'reading');
+    }
+
+    function isValidLesson(data, lessonId) {
+      return lessonId.size() >= 1
+        && lessonId.size() <= 500
+        && hasRequiredFields(['key', 'payload', 'updatedAt'])
+        && hasOnlyAllowedFields(['key', 'payload', 'updatedAt'])
+        && data.key is string
+        && data.key.size() >= 1
+        && data.key.size() <= 500
+        && data.updatedAt is int
+        && data.updatedAt >= 0
+        && data.payload is map
+        && data.payload.size() <= 100;
+    }
+
+    function isValidAiSettings(data) {
+      return hasRequiredFields(['updatedAt'])
+        && hasOnlyAllowedFields([
+             'baseUrl', 'model', 'apiKey', 'timeoutMs', 'capabilities', 'updatedAt'
+           ])
+        && data.updatedAt is int
+        && data.updatedAt >= 0
+        && (!('baseUrl' in data)
+            || data.baseUrl == null
+            || (data.baseUrl is string
+                && data.baseUrl.size() <= 500
+                && (data.baseUrl == '' || isValidUrl(data.baseUrl))))
+        && isOptionalNullableString(data, 'model', 0, 200)
+        && isOptionalNullableString(data, 'apiKey', 0, 512)
+        && (!('timeoutMs' in data)
+            || data.timeoutMs == null
+            || (data.timeoutMs is int
+                && data.timeoutMs >= 1
+                && data.timeoutMs <= 3600000))
+        && (!('capabilities' in data)
+            || data.capabilities == null
+            || (data.capabilities is list
+                && data.capabilities.size() <= 20
+                && data.capabilities.hasOnly([
+                     'lesson', 'printables', 'activity', 'test', 'challenge',
+                     'recall', 'analysis', 'review', 'explain', 'quiz'
+                   ])));
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    match /families/{familyId} {
+      allow get, list: if isFamilyMember() && familyId == 'default';
+
+      allow create: if isFamilyMember()
+        && familyId == 'default'
+        && isValidFamilyState(request.resource.data);
+
+      allow update: if isFamilyMember()
+        && familyId == 'default'
+        && isValidFamilyState(request.resource.data)
+        && request.resource.data.version == resource.data.version + 1;
+
+      allow delete: if false;
+
+      match /lessons/{lessonId} {
+        allow get, list: if isFamilyMember() && familyId == 'default';
+
+        allow create, update: if isFamilyMember()
+          && familyId == 'default'
+          && isValidLesson(request.resource.data, lessonId);
+
+        allow delete: if isFamilyMember() && familyId == 'default';
+      }
+
+      match /settings/{settingId} {
+        allow get: if isFamilyMember()
+          && familyId == 'default'
+          && settingId == 'ai';
+
+        allow create, update: if isFamilyMember()
+          && familyId == 'default'
+          && settingId == 'ai'
+          && isValidAiSettings(request.resource.data);
+
+        allow delete: if isFamilyMember()
+          && familyId == 'default'
+          && settingId == 'ai';
+      }
+    }
+
+    // Default deny for every other path in Firestore
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

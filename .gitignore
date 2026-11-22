@@ -48,3 +48,7 @@ tests/e2e/.cache/
 
 # Output of tools/decodable-books/make-books.mjs (printable PDFs).
 /decodable-books/
+
+# Firebase Hosting build output and local Firebase CLI cache.
+dist/
+.firebase/

@@ -9,6 +9,7 @@
     "dev": "node --watch server.mjs",
     "backup": "node scripts/backup.mjs",
     "build": "npm run build:css && npm run build:assets",
+    "build:firebase": "npm run build && node scripts/build-firebase.mjs",
     "build:css": "tailwindcss -c tailwind.config.cjs -i src/css/tailwind-input.css -o src/css/tailwind.css --minify",
     "build:assets": "node scripts/build-assets.mjs",
     "build:figures": "node scripts/build-figures.mjs",
