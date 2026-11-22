@@ -180,6 +180,14 @@ model and not repeated here.
 
 ### G5: `/api/ai`, lesson writes and recording writes skip the write guard
 
+- **Status:** fixed (HAR-50). `refuseCrossSite()` in `server.mjs` now guards
+  every write route (`POST /api/ai`, `PUT /api/lessons/<key>`,
+  `PUT`/`DELETE /api/audio/<key>`, `PUT`/`POST /api/state` and
+  `/api/settings/ai`), rejecting cross-site `Sec-Fetch-Site` values with `403`
+  and non-`application/json` bodies on JSON write routes with `415` before
+  reading the body or calling the AI provider (`tests/server.test.mjs`). The
+  lines below describe `fc59f0b`.
+
 - **What happens:** these routes skip the `Sec-Fetch-Site` and JSON
   content-type checks that `/api/state` has. On a server without a token, any
   web page can make the server call the AI provider, which spends credit and
@@ -198,6 +206,16 @@ model and not repeated here.
 
 ### G6: no Content-Security-Policy or Referrer-Policy on app pages
 
+- **Status:** fixed (HAR-51). `server.mjs` now sends
+  `Referrer-Policy: no-referrer` on every response (API, static files and
+  recordings), and `APP_CSP` in `src/js/figures/contract.js` locks the app
+  shell (`index.html`) to `default-src 'self'`, `script-src 'self'`,
+  `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: blob:`,
+  `font-src 'self'`, `media-src 'self' blob:`, `connect-src 'self'`,
+  `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`,
+  `frame-ancestors 'self'` and `frame-src 'self'` (`tests/server.test.mjs`,
+  `tests/figures.test.mjs`). The lines below describe `fc59f0b`.
+
 - **What happens:** the resource links (Khan Academy, YouTube, Wikipedia,
   BBC) receive the host's origin, such as the tailnet name. If an escaping
   slip ever happens, no CSP limits what the injected script can do.
@@ -211,6 +229,14 @@ model and not repeated here.
   3. Add a test that asserts the headers.
 
 ### G7: data folder, files and backups are readable by every local user
+
+- **Status:** fixed (HAR-52). `ensurePrivateDir()` and `writeFileAtomic()` in
+  `server.mjs` (along with `lib/teaching-research.mjs` and
+  `scripts/backup.mjs`) now create private data and backup directories with
+  mode `0700` and write state files, lesson cache entries, recordings,
+  taxonomy caches, `secrets.json` and `.tar.gz` backup archives with mode
+  `0600` followed by `chmod` so the umask cannot widen them
+  (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
 
 - **Reproduce:** with umask 022, run `ls -l data/private backups`. Folders
   are 0755; `family-state.json`, recordings and archives are 0644.
@@ -233,6 +259,12 @@ model and not repeated here.
   3. A shorter lifetime that renews on use.
 
 ### G9: `includeNotes` is trusted as the request states it
+
+- **Status:** fixed (HAR-54). `notesAllowed()` in `server.mjs` accepts
+  `includeNotes: true` only for `analysis` and `review`, stripping stored
+  parent notes on every other capability, and `handleAiChat()` increments an
+  in-memory `notesOptInCount` reported only in signed-in `/api/health`
+  responses (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
 
 - **What happens:** any script on the origin (see G2) or a bug in a view can
   send the parent's notes to the provider.
@@ -304,6 +336,17 @@ model and not repeated here.
   2. Document how to fix the volume's ownership for existing installs.
 
 ### G14: a plain `http://` AI base URL on a public host is accepted
+
+- **Status:** fixed (HAR-59). `plainHttpPublicHost()` in `lib/ai-provider.mjs`
+  permits `https://` everywhere and plain `http://` only for loopback, Docker
+  aliases (`host.docker.internal`, `gateway.docker.internal`, single-label
+  service names), local suffixes (`.local`, `.internal`, `.lan`, `.home.arpa`,
+  `.ts.net`, `.test`, `.invalid`, `.example`) and private/link-local/CGNAT IP
+  ranges (`10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `100.64/10`,
+  `fc00::/7`, `fe80::/10`). `PUT /api/settings/ai` refuses public `http://`
+  URLs with `400`, while `readStoredAiSettings()` and `resolveAiSettings()`
+  warn once and fail closed if `HARRINGTON_AI_BASE_URL` or `secrets.json`
+  carries one (`tests/server.test.mjs`). The lines below describe `fc59f0b`.
 
 - **Code:** `aiSettings()` (`server.mjs:315`) does not check the scheme.
   Found by code reading.

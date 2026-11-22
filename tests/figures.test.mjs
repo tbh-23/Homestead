@@ -146,6 +146,9 @@ test('the server policy: only the app shell is unsandboxed, whatever the case or
     assert.equal(contentPolicyFor(path), FIGURE_CSP, path);
   }
   for (const path of ['js/app.js', 'css/styles.css', 'vendor/lucide.min.js', 'docs/GUIDE.md']) assert.equal(contentPolicyFor(path), null, path);
+  for (const directive of ["default-src 'self'", "script-src 'self' 'sha256-", "object-src 'none'", "base-uri 'none'", "frame-ancestors 'self'", "frame-src 'self'"]) {
+    assert.ok(APP_CSP.includes(directive), `${directive} in ${APP_CSP}`);
+  }
   assert.match(FIGURE_CSP, /default-src 'none'/);
   assert.match(FIGURE_CSP, /sandbox allow-scripts/);
   assert.doesNotMatch(FIGURE_CSP, /allow-same-origin/);

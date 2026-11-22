@@ -9,9 +9,11 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { isLoopbackAddress } from '../lib/loopback.mjs';
+import { plainHttpPublicHost, readStoredAiSettings, resolveAiSettings } from '../lib/ai-provider.mjs';
 import { seedFixtureTaxonomy } from './support/fixture-taxonomy.mjs';
 import { waitForOutput } from './support/wait-for-output.mjs';
 import { AI_CAPABILITIES, parseCapabilities } from '../src/js/ai-capabilities.js';
+import { APP_CSP } from '../src/js/figures/contract.js';
 import { SCHEMA_VERSION, formatCopyName } from '../src/js/schema.js';
 
 const repoRoot = new URL('..', import.meta.url);
@@ -81,6 +83,7 @@ test('serves Harrington and reports self-hosted health', async () => {
     aiConfigured: false,
     aiSource: 'none',
     aiCapabilities: [],
+    notesOptInCount: 0,
     redaction: 'server+client',
     taxonomyCached: false,
     taxonomy: 'not-downloaded',
@@ -110,10 +113,18 @@ test('serves a figure page with a policy that allows no network and always sandb
     assert.equal(res.status, 200, variant);
     assert.equal(res.headers.get('content-security-policy'), csp, variant);
   }
-  // The app's pages may frame only same-origin pages, so a figure cannot navigate its frame away.
-  assert.equal((await fetch(baseUrl)).headers.get('content-security-policy'), "frame-src 'self'");
-  assert.equal((await fetch(`${baseUrl}/index.html`)).headers.get('content-security-policy'), "frame-src 'self'");
-  assert.equal((await fetch(`${baseUrl}/js/app.js`)).headers.get('content-security-policy'), null);
+  // The app's pages lock scripts, styles, connections, framing and referrer leakage (HAR-51).
+  const home = await fetch(baseUrl);
+  assert.equal(home.headers.get('content-security-policy'), APP_CSP);
+  assert.equal(home.headers.get('referrer-policy'), 'no-referrer');
+  const indexRes = await fetch(`${baseUrl}/index.html`);
+  assert.equal(indexRes.headers.get('content-security-policy'), APP_CSP);
+  assert.equal(indexRes.headers.get('referrer-policy'), 'no-referrer');
+  const scriptRes = await fetch(`${baseUrl}/js/app.js`);
+  assert.equal(scriptRes.headers.get('content-security-policy'), null);
+  assert.equal(scriptRes.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal((await fetch(`${baseUrl}/api/health`)).headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(figure.headers.get('referrer-policy'), 'no-referrer');
 });
 
 test('lists every figure page in src/figures/ with the title and hint it carries (HAR-34)', async () => {
@@ -535,12 +546,93 @@ test('persists lesson cache entries and recordings', async () => {
   const loadedAudio = await fetch(`${baseUrl}/api/audio/recording-1.webm`);
   assert.equal(loadedAudio.headers.get('content-type'), 'audio/webm');
   assert.equal(loadedAudio.headers.get('content-security-policy'), 'sandbox');
+  assert.equal(loadedAudio.headers.get('referrer-policy'), 'no-referrer');
   assert.equal(loadedAudio.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(loadedAudio.headers.get('x-frame-options'), 'DENY');
   assert.equal(loadedAudio.headers.get('content-disposition'), null);
   assert.deepEqual(new Uint8Array(await loadedAudio.arrayBuffer()), audio);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`, { method: 'DELETE' })).status, 204);
   assert.equal((await fetch(`${baseUrl}/api/audio/recording-1.webm`)).status, 404);
+});
+
+test('refuses cross-site and non-JSON writes across AI, lessons, recordings and state (HAR-50)', async () => {
+  const lessonUrl = `${baseUrl}/api/lessons/${encodeURIComponent('topic:guard-test')}`;
+  const audioUrl = `${baseUrl}/api/audio/${encodeURIComponent('guard-test.webm')}`;
+
+  // Seed one recording so we verify DELETE does not delete it on a cross-site request.
+  assert.equal((await fetch(audioUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'audio/webm' },
+    body: new Uint8Array([1, 2, 3]),
+  })).status, 204);
+
+  // PUT /api/state also rejects non-JSON Content-Type with 415.
+  const stateNonJson = await fetch(`${baseUrl}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain', 'If-Match': '"v0"' },
+    body: JSON.stringify({ students: [] }),
+  });
+  assert.equal(stateNonJson.status, 415);
+
+  // Lesson writes require same-origin (or none) and application/json.
+  assert.equal((await fetch(lessonUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' },
+    body: JSON.stringify({ objective: 'blocked' }),
+  })).status, 403);
+  assert.equal((await fetch(lessonUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ objective: 'blocked' }),
+  })).status, 415);
+  assert.equal((await fetch(lessonUrl)).status, 404);
+
+  // Recording writes and deletes reject cross-site requests.
+  assert.equal((await fetch(`${baseUrl}/api/audio/cross-site.webm`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'audio/webm', 'Sec-Fetch-Site': 'cross-site' },
+    body: new Uint8Array([9, 9]),
+  })).status, 403);
+  assert.equal((await fetch(`${baseUrl}/api/audio/cross-site.webm`)).status, 404);
+
+  assert.equal((await fetch(audioUrl, {
+    method: 'DELETE',
+    headers: { 'Sec-Fetch-Site': 'cross-site' },
+  })).status, 403);
+  assert.equal((await fetch(audioUrl)).status, 200);
+  assert.equal((await fetch(audioUrl, { method: 'DELETE' })).status, 204);
+
+  // POST /api/ai checks Sec-Fetch-Site and Content-Type before reading the body or calling the provider.
+  let providerCalls = 0;
+  const upstream = createServer(async (req, res) => {
+    providerCalls += 1;
+    await readRequestBody(req);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+  });
+  await listen(upstream);
+  const aiServer = await spawnHarrington({
+    HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+    HARRINGTON_AI_MODEL: 'llama3.2',
+  });
+  try {
+    const crossSite = await fetch(`${aiServer.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'explain' }),
+    });
+    assert.equal(crossSite.status, 403);
+    const plainText = await fetch(`${aiServer.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'explain' }),
+    });
+    assert.equal(plainText.status, 415);
+    assert.equal(providerCalls, 0);
+  } finally {
+    await aiServer.stop();
+    upstream.close();
+  }
 });
 
 test('hardens /api/audio/ uploads and legacy sidecars against stored script execution (HAR-47)', async () => {
@@ -1227,6 +1319,64 @@ describe('OpenAI-compatible AI adapter', { concurrency: false }, () => {
     }
   });
 
+  test('counts note opt-ins only for analysis and review in signed-in /api/health (HAR-54)', async () => {
+    const captured = [];
+    const upstream = createServer(async (req, res) => {
+      captured.push(JSON.parse(await readRequestBody(req)));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }));
+    });
+    await listen(upstream);
+    const TOKEN = 'test-family-token-0123456789';
+    const harrington = await spawnHarrington({
+      HARRINGTON_ACCESS_TOKEN: TOKEN,
+      HARRINGTON_AI_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1`,
+      HARRINGTON_AI_MODEL: 'llama3.2',
+    });
+    try {
+      const signedOutHealth = await (await fetch(`${harrington.url}/api/health`)).json();
+      assert.equal('notesOptInCount' in signedOutHealth, false);
+
+      const login = await fetch(`${harrington.url}/login?token=${encodeURIComponent(TOKEN)}`, { redirect: 'manual' });
+      const cookie = login.headers.get('set-cookie').split(';')[0];
+      const headers = { 'Content-Type': 'application/json', Cookie: cookie };
+
+      assert.equal((await fetch(`${harrington.url}/api/state`, {
+        method: 'PUT',
+        headers: { ...headers, 'If-Match': '"v0"' },
+        body: JSON.stringify({
+          students: [{ id: 's1', name: 'Zebulon Quixote' }],
+          records: { s1: [{ id: 'r1', type: 'observation', note: 'Zebulon counted ten shells slowly by hand.' }] },
+        }),
+      })).status, 204);
+
+      const healthCount = async () => (await (await fetch(`${harrington.url}/api/health`, { headers: { Cookie: cookie } })).json()).notesOptInCount;
+      assert.equal(await healthCount(), 0);
+
+      const noteText = 'the child counted ten shells slowly by hand.';
+      const ask = (capability, includeNotes) => fetch(`${harrington.url}/api/ai`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ messages: [{ role: 'user', content: `Notes: ${noteText}` }], capability, includeNotes }),
+      });
+
+      assert.equal((await ask('lesson', true)).status, 200);
+      assert.equal(captured.at(-1).messages[0].content, 'Notes: [note removed]');
+      assert.equal(await healthCount(), 0);
+
+      assert.equal((await ask('analysis', true)).status, 200);
+      assert.equal(captured.at(-1).messages[0].content, `Notes: ${noteText}`);
+      assert.equal(await healthCount(), 1);
+
+      assert.equal((await ask('review', true)).status, 200);
+      assert.equal(captured.at(-1).messages[0].content, `Notes: ${noteText}`);
+      assert.equal(await healthCount(), 2);
+    } finally {
+      await harrington.stop();
+      upstream.close();
+    }
+  });
+
   test('accepts a request with no model field and uses HARRINGTON_AI_MODEL', async () => {
     const captured = [];
     const upstream = createServer(async (req, res) => {
@@ -1639,6 +1789,173 @@ test('npm run backup leaves secrets.json out of the archive', async () => {
     assert.ok(!listing.some((name) => name.includes('secrets.json')), listing.join('\n'));
   } finally {
     await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('creates private data folders (0700) and files/backups (0600) (HAR-52)', async () => {
+  const work = await mkdtemp(join(tmpdir(), 'harrington-perms-'));
+  const isolatedDataDir = join(work, 'private');
+  const isolatedBackupDir = join(work, 'backups');
+  const server = await spawnHarrington({ HARRINGTON_BACKUP_DIR: isolatedBackupDir }, { dir: isolatedDataDir });
+  try {
+    const modeOf = async (targetPath) => (await stat(targetPath)).mode & 0o777;
+    assert.equal(await modeOf(isolatedDataDir), 0o700);
+
+    assert.equal((await fetch(`${server.url}/api/state`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'If-Match': '"v0"' },
+      body: JSON.stringify({ students: [{ id: 's1', name: 'Sample Learner', birthYear: 2018 }] }),
+    })).status, 204);
+    assert.equal(await modeOf(join(isolatedDataDir, 'family-state.json')), 0o600);
+
+    const lessonKey = 'topic:perms-check';
+    assert.equal((await fetch(`${server.url}/api/lessons/${encodeURIComponent(lessonKey)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objective: 'count' }),
+    })).status, 204);
+    assert.equal(await modeOf(join(isolatedDataDir, 'lessons')), 0o700);
+    assert.equal(await modeOf(join(isolatedDataDir, 'lessons', `${Buffer.from(lessonKey, 'utf8').toString('base64url')}.json`)), 0o600);
+
+    const audioKey = 'perms-recording.webm';
+    assert.equal((await fetch(`${server.url}/api/audio/${encodeURIComponent(audioKey)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'audio/webm' },
+      body: new Uint8Array([1, 2, 3, 4]),
+    })).status, 204);
+    assert.equal(await modeOf(join(isolatedDataDir, 'audio')), 0o700);
+    const audioEncoded = Buffer.from(audioKey, 'utf8').toString('base64url');
+    assert.equal(await modeOf(join(isolatedDataDir, 'audio', `${audioEncoded}.bin`)), 0o600);
+    assert.equal(await modeOf(join(isolatedDataDir, 'audio', `${audioEncoded}.meta.json`)), 0o600);
+
+    const backupRun = spawnSync(process.execPath, ['scripts/backup.mjs'], {
+      cwd: repoRoot,
+      env: { ...process.env, HARRINGTON_DATA_DIR: isolatedDataDir, HARRINGTON_BACKUP_DIR: isolatedBackupDir },
+      encoding: 'utf8',
+    });
+    assert.equal(backupRun.status, 0, backupRun.stderr);
+    assert.equal(await modeOf(isolatedBackupDir), 0o700);
+    const [archive] = await readdir(isolatedBackupDir);
+    assert.equal(await modeOf(join(isolatedBackupDir, archive)), 0o600);
+  } finally {
+    await server.stop();
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
+test('refuses plain http:// AI base URLs on public hosts while allowing local and private networks (HAR-59)', async () => {
+  for (const refused of [
+    'http://203.0.113.10/v1',
+    'http://8.8.8.8/v1',
+    'http://api.openai.com/v1',
+    'http://ai.example-cloud.com/v1',
+  ]) {
+    assert.equal(plainHttpPublicHost(refused), true, `${refused} should be refused`);
+  }
+
+  for (const allowed of [
+    'http://127.0.0.1:11434/v1',
+    'http://localhost:11434/v1',
+    'http://[::1]:11434/v1',
+    'http://host.docker.internal:11434/v1',
+    'http://ollama:11434/v1',
+    'http://10.0.0.5:11434/v1',
+    'http://172.20.0.2:11434/v1',
+    'http://192.168.1.50:11434/v1',
+    'http://100.90.1.2:11434/v1',
+    'http://[fd00::1]:11434/v1',
+    'http://mac-mini.local:11434/v1',
+    'https://203.0.113.10/v1',
+    'https://generativelanguage.googleapis.com/v1beta/openai',
+  ]) {
+    assert.equal(plainHttpPublicHost(allowed), false, `${allowed} should be allowed`);
+  }
+
+  // PUT /api/settings/ai refuses plain http:// on a public host with 400.
+  const appServer = await spawnHarrington();
+  try {
+    for (const badUrl of ['http://203.0.113.10/v1', 'http://api.openai.com/v1']) {
+      const res = await fetch(`${appServer.url}/api/settings/ai`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseUrl: badUrl, model: 'gpt-4o' }),
+      });
+      assert.equal(res.status, 400, badUrl);
+      assert.deepEqual(await res.json(), { error: 'Use https:// for an AI provider outside your computer or home network' });
+    }
+    // Private network and https:// public hosts are accepted.
+    for (const goodUrl of ['http://192.168.1.50:11434/v1', 'https://203.0.113.10/v1']) {
+      const res = await fetch(`${appServer.url}/api/settings/ai`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseUrl: goodUrl, model: 'm' }),
+      });
+      assert.equal(res.status, 200, goodUrl);
+    }
+  } finally {
+    await appServer.stop();
+  }
+
+  // HARRINGTON_AI_BASE_URL with plain http:// on a public host fails closed.
+  const envPublic = await spawnHarrington({
+    HARRINGTON_AI_BASE_URL: 'http://203.0.113.10/v1',
+    HARRINGTON_AI_MODEL: 'gpt-4o',
+    HARRINGTON_AI_API_KEY: 'sk-should-never-leave',
+  });
+  try {
+    const health = await (await fetch(`${envPublic.url}/api/health`)).json();
+    assert.equal(health.aiConfigured, false);
+    const ai = await fetch(`${envPublic.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'explain' }),
+    });
+    assert.equal(ai.status, 503);
+    const log = await waitForOutput(envPublic.output, /plain http:\/\//);
+    assert.equal(log.match(/plain http:\/\//g)?.length, 1);
+  } finally {
+    await envPublic.stop();
+  }
+
+  // Hand-edited secrets.json with plain http:// on a public host also fails closed and warns once.
+  const dir = await mkdtemp(join(tmpdir(), 'harrington-public-http-'));
+  await writeFile(join(dir, 'secrets.json'), JSON.stringify({
+    schemaVersion: 1,
+    ai: { baseUrl: 'http://api.openai.com/v1', model: 'gpt-4o', apiKey: 'sk-hand-edited' },
+  }));
+  const storedPublic = await spawnHarrington({}, { dir });
+  try {
+    for (let i = 0; i < 2; i += 1) {
+      const health = await (await fetch(`${storedPublic.url}/api/health`)).json();
+      assert.equal(health.aiConfigured, false);
+    }
+    const ai = await fetch(`${storedPublic.url}/api/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], capability: 'explain' }),
+    });
+    assert.equal(ai.status, 503);
+    const log = await waitForOutput(storedPublic.output, /plain http:\/\//);
+    assert.equal(log.match(/Stored AI settings .* uses plain http:\/\//g)?.length, 1);
+    assert.ok(!log.includes('sk-hand-edited'));
+  } finally {
+    await storedPublic.stop();
+  }
+
+  // Direct readStoredAiSettings / resolveAiSettings unit checks.
+  const resolved = resolveAiSettings({ baseUrl: 'http://203.0.113.10/v1', model: 'm' }, {});
+  assert.equal(resolved.configured, false);
+  assert.equal(resolved.baseUrl, '');
+  const tempSecrets = await mkdtemp(join(tmpdir(), 'harrington-secrets-read-'));
+  try {
+    const file = join(tempSecrets, 'secrets.json');
+    await writeFile(file, JSON.stringify({ ai: { baseUrl: 'http://api.openai.com/v1', model: 'm' } }));
+    const problems = [];
+    const read = await readStoredAiSettings(file, (why) => problems.push(why));
+    assert.equal(read.baseUrl, undefined);
+    assert.equal(problems.length, 1);
+  } finally {
+    await rm(tempSecrets, { recursive: true, force: true });
   }
 });
 

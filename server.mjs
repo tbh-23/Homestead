@@ -6,7 +6,7 @@ import { isIP } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, readStoredAiSettings, resolveAiSettings, validTimeout,
+  MAX_TIMEOUT_MS, chatCompletion, knownCapabilities, plainHttpPublicHost, readStoredAiSettings, resolveAiSettings, validTimeout,
 } from './lib/ai-provider.mjs';
 import { isLoopbackAddress } from './lib/loopback.mjs';
 import { rememberFailures } from './lib/remembered.mjs';
@@ -92,6 +92,7 @@ const writeQueues = new Map();
 function send(res, status, body = '', headers = {}) {
   res.writeHead(status, {
     'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'SAMEORIGIN',
     ...headers,
@@ -161,8 +162,13 @@ function enqueueWrite(path, task) {
   return operation;
 }
 
-async function writeFileAtomic(path, data, mode = null) {
-  await mkdir(dataDir, { recursive: true });
+async function ensurePrivateDir(dir) {
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  await chmod(dir, 0o700).catch(() => {});
+}
+
+async function writeFileAtomic(path, data, mode = 0o600) {
+  await ensurePrivateDir(dataDir);
   const tempPath = `${path}.${process.pid}.tmp`;
   await writeFile(tempPath, data, mode ? { mode } : undefined);
   // chmod as well: the mode given to writeFile is narrowed by the umask.
@@ -170,8 +176,8 @@ async function writeFileAtomic(path, data, mode = null) {
   await rename(tempPath, path);
 }
 
-function atomicWrite(path, data) {
-  return enqueueWrite(path, () => writeFileAtomic(path, data));
+function atomicWrite(path, data, mode = 0o600) {
+  return enqueueWrite(path, () => writeFileAtomic(path, data, mode));
 }
 
 // ---- Versioned family state ----
@@ -271,18 +277,11 @@ function writeStateIfMatch(expected, data) {
 }
 
 async function handleStateWrite(req, res) {
-  // Browsers send Sec-Fetch-Site on every request; only this page may write.
-  const fetchSite = req.headers['sec-fetch-site'];
-  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-    sendJson(res, 403, { error: 'Family data can only be saved from Harrington itself' });
-    return;
-  }
-  // HTML forms can POST cross-site without a preflight but never as JSON; a
-  // real sendBeacon with a JSON Blob always sends application/json.
-  if (req.method === 'POST' && !String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
-    sendJson(res, 415, { error: 'Family data must be sent as application/json' });
-    return;
-  }
+  if (refuseCrossSite(req, res, {
+    json: true,
+    crossSiteError: 'Family data can only be saved from Harrington itself',
+    contentTypeError: 'Family data must be sent as application/json',
+  })) return;
   let expected = parseIfMatch(req.headers['if-match']);
   const value = await readJson(req);
   // navigator.sendBeacon cannot set headers, so the unload path (POST) carries
@@ -465,7 +464,11 @@ function applyAiSettings(current, body) {
         throw settingError('The base URL must be an http:// or https:// address');
       }
       if (url.username || url.password) throw settingError('Put the API key in its own field, not in the base URL');
-      next.baseUrl = body.baseUrl.trim().replace(/\/+$/, '');
+      const trimmed = body.baseUrl.trim().replace(/\/+$/, '');
+      if (plainHttpPublicHost(trimmed)) {
+        throw settingError('Use https:// for an AI provider outside your computer or home network');
+      }
+      next.baseUrl = trimmed;
     }
   }
   if ('model' in body) {
@@ -501,16 +504,21 @@ function writeStoredAi(ai) {
   return writeFileAtomic(secretsFile, `${JSON.stringify(doc, null, 2)}\n`, 0o600);
 }
 
-// The browser sends Sec-Fetch-Site on every request; settings change only
-// from Harrington's own pages, and only as JSON.
-function refuseCrossSite(req, res, { json = false } = {}) {
+// Browsers send Sec-Fetch-Site on every request; write routes only accept
+// requests from Harrington itself (and JSON routes require application/json,
+// which cross-site HTML forms cannot send without a preflight).
+function refuseCrossSite(req, res, {
+  json = false,
+  crossSiteError = 'AI settings can only be changed from Harrington itself',
+  contentTypeError = 'AI settings must be sent as application/json',
+} = {}) {
   const fetchSite = req.headers['sec-fetch-site'];
   if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-    sendJson(res, 403, { error: 'AI settings can only be changed from Harrington itself' });
+    sendJson(res, 403, { error: crossSiteError });
     return true;
   }
   if (json && !String(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
-    sendJson(res, 415, { error: 'AI settings must be sent as application/json' });
+    sendJson(res, 415, { error: contentTypeError });
     return true;
   }
   return false;
@@ -655,6 +663,7 @@ function notePatterns(doc, names) {
 // Whether the parent opted in to sending notes with this request. Only the
 // discussion analysis and the progress review offer that choice.
 const NOTE_CAPABILITIES = new Set(['analysis', 'review']);
+let notesOptInCount = 0;
 function notesAllowed(body) {
   return body.includeNotes === true && NOTE_CAPABILITIES.has(body.capability);
 }
@@ -672,6 +681,12 @@ async function guardMessages(body) {
 }
 
 async function handleAiChat(req, res) {
+  if (refuseCrossSite(req, res, {
+    json: true,
+    crossSiteError: 'AI requests can only be sent from Harrington itself',
+    contentTypeError: 'AI requests must be sent as application/json',
+  })) return;
+
   const settings = await aiSettings();
   if (!settings.configured) {
     sendJson(res, 503, { error: AI_UNCONFIGURED });
@@ -696,6 +711,7 @@ async function handleAiChat(req, res) {
 
   // Names and opted-out notes are removed here, after the capability check.
   const messages = await guardMessages(body);
+  if (notesAllowed(body)) notesOptInCount += 1;
   const result = await chatCompletion(settings, messages);
   if (!result.ok) {
     sendJson(res, result.httpStatus, { error: result.error });
@@ -801,7 +817,8 @@ async function downloadTaxonomyFile(name, { timeoutMs = null } = {}) {
     }
     taxonomyRefused.delete(name);
   }
-  await mkdir(taxonomyCacheDir, { recursive: true });
+  await ensurePrivateDir(taxonomyDir);
+  await ensurePrivateDir(taxonomyCacheDir);
   await atomicWrite(join(taxonomyCacheDir, name), body);
   return body;
 }
@@ -1255,6 +1272,7 @@ async function handleApi(req, res, url) {
       aiConfigured: ai.configured,
       aiSource: ai.aiSource,
       aiCapabilities: ai.capabilities,
+      notesOptInCount,
       redaction: 'server+client',
       taxonomyCached: await taxonomyCached(),
       ...(await taxonomyStatus().then((taxonomy) => ({
@@ -1351,8 +1369,13 @@ async function handleApi(req, res, url) {
       return true;
     }
     if (req.method === 'PUT') {
+      if (refuseCrossSite(req, res, {
+        json: true,
+        crossSiteError: 'Lessons can only be saved from Harrington itself',
+        contentTypeError: 'Lessons must be sent as application/json',
+      })) return true;
       const value = await readJson(req);
-      await mkdir(lessonsDir, { recursive: true });
+      await ensurePrivateDir(lessonsDir);
       await atomicWrite(path, `${JSON.stringify(value, null, 2)}\n`);
       send(res, 204);
       return true;
@@ -1376,6 +1399,7 @@ async function handleApi(req, res, url) {
           'Content-Type': safeType || 'application/octet-stream',
           'Content-Length': details.size,
           'Content-Security-Policy': 'sandbox',
+          'Referrer-Policy': 'no-referrer',
           'X-Content-Type-Options': 'nosniff',
           'X-Frame-Options': 'DENY',
           ...(safeType ? {} : { 'Content-Disposition': `attachment; filename="${safeAudioAttachmentName(audioKey)}"` }),
@@ -1389,9 +1413,13 @@ async function handleApi(req, res, url) {
       return true;
     }
     if (req.method === 'PUT') {
+      if (refuseCrossSite(req, res, {
+        json: false,
+        crossSiteError: 'Recordings can only be changed from Harrington itself',
+      })) return true;
       const body = await readBody(req, AUDIO_LIMIT);
       const contentType = safeAudioContentType(req.headers['content-type']) || 'application/octet-stream';
-      await mkdir(audioDir, { recursive: true });
+      await ensurePrivateDir(audioDir);
       await Promise.all([
         atomicWrite(path, body),
         atomicWrite(metaPath, `${JSON.stringify({ contentType })}\n`),
@@ -1400,6 +1428,10 @@ async function handleApi(req, res, url) {
       return true;
     }
     if (req.method === 'DELETE') {
+      if (refuseCrossSite(req, res, {
+        json: false,
+        crossSiteError: 'Recordings can only be changed from Harrington itself',
+      })) return true;
       await Promise.all([
         unlink(path).catch((error) => { if (error.code !== 'ENOENT') throw error; }),
         unlink(metaPath).catch((error) => { if (error.code !== 'ENOENT') throw error; }),
@@ -1448,6 +1480,7 @@ async function serveStatic(req, res, url) {
       'Cache-Control': extname(path) === '.html' ? 'no-cache' : 'public, max-age=3600',
       'Content-Type': MIME[extname(path).toLowerCase()] || 'application/octet-stream',
       'Content-Length': details.size,
+      'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'SAMEORIGIN',
       ...(policy ? { 'Content-Security-Policy': policy } : {}),
@@ -1481,7 +1514,7 @@ if (tokenProblem) {
   process.exit(1);
 }
 
-await mkdir(dataDir, { recursive: true });
+await ensurePrivateDir(dataDir);
 
 const server = createServer(async (req, res) => {
   try {

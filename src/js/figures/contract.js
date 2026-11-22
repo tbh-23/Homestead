@@ -14,14 +14,38 @@ export const ENGINE_NOTICE = '/* Harrington figure engine (src/js/figures/engine
   + ' Copyright (c) 2026 Tolga Cohce. The full notice is in src/js/figures/engine.js and NOTICE. */';
 
 // The Content-Security-Policy for a file the server serves from src/, given its
-// path relative to src/ as resolved on disk. The app shell (index.html) may
-// frame only same-origin pages, so a figure cannot navigate its frame to
-// another origin; every other HTML page, and anything under figures/, is a
-// figure: inline script and style only, no network, framed only by
-// Harrington and always sandboxed to an opaque origin. Compared without
+// path relative to src/ as resolved on disk. The app shell (index.html) locks
+// scripts, styles, media, connections, form targets and frames to same-origin
+// (plus inline styles and data:/blob: images/media needed by views and audio),
+// so a figure cannot navigate its frame to another origin and any slipped
+// markup cannot reach outside; every other HTML page, and anything under
+// figures/, is a figure: inline script and style only, no network, framed only
+// by Harrington and always sandboxed to an opaque origin. Compared without
 // regard to case, because macOS and Windows serve figures/x.html for
 // FIGURES/x.html too; a page that is not the shell is never left unsandboxed.
-export const APP_CSP = "frame-src 'self'";
+// SHA-256 hashes of the four static window.print() onload scripts written into
+// about:blank print popups (which inherit the opener's CSP in Chromium).
+export const PRINT_POPUP_SCRIPT_HASHES = [
+  "'sha256-mtZeYD9sp61QVMbylSYVLiwSWCDgg7Ml/ZUhzoPfP0g='",
+  "'sha256-MflXQyF1Am2ZOeVNyZFEa2MTRFNQFNdxaM0ISHjbfIg='",
+  "'sha256-HvBgznNIiGNupYbOEQ00fWY+Fzo4MRqTIGIS5MQ+yM4='",
+  "'sha256-jfEJ0YP2ipAFI2quYQk/vYDsJdnjoU3N+mvWk5AYdec='",
+];
+
+export const APP_CSP = [
+  "default-src 'self'",
+  `script-src 'self' ${PRINT_POPUP_SCRIPT_HASHES.join(' ')}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  "frame-src 'self'",
+].join('; ');
 export const FIGURE_CSP = [
   "default-src 'none'",
   "script-src 'unsafe-inline'",
