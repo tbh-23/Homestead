@@ -12,6 +12,10 @@ export const SUBJECTS = {
   'Life Skills':                  { color: '#c08a2e', icon: 'sprout' },
   'Computing':                    { color: '#4a7a86', icon: 'cpu' },
   'Learning to Learn':            { color: '#a3486b', icon: 'brain' },
+  'Geography':                    { color: '#3a7d6b', icon: 'globe' },
+  'Art & Design':                 { color: '#b5546e', icon: 'palette' },
+  'Performing Arts':              { color: '#7c5bbf', icon: 'drama' },
+  'Français':                     { color: '#5a7aa8', icon: 'languages' },
 };
 
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -32,10 +36,18 @@ export async function loadTaxonomy() {
   const clustersJson = clustersRes.ok ? await clustersRes.json() : { clusters: [] };
   const manifest = (manifestRes && manifestRes.ok) ? await manifestRes.json() : null;
 
-  const topics = topicsJson.topics || topicsJson;
+  // Keep only topics in subjects the app supports (the SUBJECTS map above).
+  // Forward-compat safety net: if the upstream taxonomy adds a brand-new subject
+  // we haven't styled yet, those topics are skipped here rather than crashing
+  // every view that looks up SUBJECTS[t.subject] for a color/icon. To support a
+  // new subject, add it to SUBJECTS and it flows through automatically.
+  const allTopics = topicsJson.topics || topicsJson;
+  const topics = allTopics.filter(t => t && SUBJECTS[t.subject]);
   const dependencies = depsJson.dependencies || depsJson;
   const clusters = clustersJson.clusters || [];
 
+  // byId only contains kept topics, so the dependency loop below (which guards on
+  // byId.has) naturally drops any edge pointing at a filtered-out subject.
   const byId = new Map(topics.map(t => [t.id, t]));
 
   // Prerequisite edges: topicId depends on prerequisiteId
