@@ -16,6 +16,7 @@ const listeners = new Set();
 const PER_STUDENT_KEYS = [
   'progress', 'records', 'tests', 'plan', 'challenges', 'adaptations',
   'suggestions', 'recall', 'practice', 'activity', 'game',
+  'profiles', 'misconceptions',
 ];
 // All persisted top-level keys (per-student maps + account-wide state).
 const PERSIST_KEYS = [
@@ -39,6 +40,8 @@ let state = {
   practice: {},       // studentId -> { itemId -> { topicId, subject, q, type, options, answer, box, due, reps, lapses, last } }
   activity: {},       // studentId -> { 'yyyy-mm-dd': true }  (days with recall/lesson/mastery activity)
   game: {},           // studentId -> { xp, badges: {badgeId: ts} }
+  profiles: {},       // studentId -> { modality, pace, readingLevel, interests, attention, notes }
+  misconceptions: {}, // studentId -> { id -> { topicId, subject, category, label, why, count, status, plan, createdAt, lastSeen } }
 };
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -82,6 +85,8 @@ export async function signOut() {
   state.practice = {};
   state.activity = {};
   state.game = {};
+  state.profiles = {};
+  state.misconceptions = {};
   emit();
 }
 
@@ -107,6 +112,8 @@ export async function loadAll() {
       state.practice = data.practice || {};
       state.activity = data.activity || {};
       state.game = data.game || {};
+      state.profiles = data.profiles || {};
+      state.misconceptions = data.misconceptions || {};
     }
   } catch (e) { console.warn('load failed', e); }
 }
@@ -553,6 +560,77 @@ export function markAllNotificationsRead() {
   persist(); emit();
 }
 export function clearNotifications() { state.notifications = []; persist(); emit(); }
+
+// ---- Learner profile (how a child learns best) ----
+// A small, optional model of the child used to personalize AI-generated lessons,
+// explanations, tests and remediation. Every field is optional.
+const PROFILE_FIELDS = ['modality', 'pace', 'readingLevel', 'interests', 'attention', 'notes'];
+export function getProfile(studentId) { return state.profiles[studentId] || {}; }
+export function hasProfile(studentId) {
+  const p = state.profiles[studentId];
+  if (!p) return false;
+  return PROFILE_FIELDS.some(f => { const v = p[f]; return Array.isArray(v) ? v.length > 0 : (v != null && v !== ''); });
+}
+export function setProfile(studentId, patch) {
+  state.profiles[studentId] = { ...(state.profiles[studentId] || {}), ...patch };
+  persist(); emit();
+  return state.profiles[studentId];
+}
+// A compact signature so personalized lessons cache per-profile instead of colliding.
+export function profileSignature(studentId) {
+  const p = state.profiles[studentId];
+  if (!p) return '0';
+  const s = PROFILE_FIELDS.map(f => Array.isArray(p[f]) ? p[f].join(',') : (p[f] ?? '')).join('|');
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+
+// ---- Misconceptions (error-pattern diagnosis + remediation) ----
+function misconceptionsOf(studentId) {
+  if (!state.misconceptions[studentId]) state.misconceptions[studentId] = {};
+  return state.misconceptions[studentId];
+}
+function catKey(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+// Record a detected error pattern. Repeats of the same category on the same topic
+// merge into one rising-count pattern, so a recurring mistake reads as a trend.
+export function addMisconception(studentId, m) {
+  const map = misconceptionsOf(studentId);
+  const category = catKey(m.category || m.label);
+  if (!category) return null;
+  const existing = Object.values(map).find(x => x.status !== 'resolved' && (x.topicId || null) === (m.topicId || null) && x.category === category);
+  if (existing) {
+    existing.count = (existing.count || 1) + 1;
+    existing.lastSeen = Date.now();
+    if (m.why && !existing.why) existing.why = m.why;
+    persist(); emit();
+    return existing;
+  }
+  const id = 'mc_' + Math.random().toString(36).slice(2, 9);
+  map[id] = {
+    id, topicId: m.topicId || null, subject: m.subject || null, domain: m.domain || null,
+    category, label: m.label || m.category || 'Misconception', why: m.why || '', evidence: m.evidence || '',
+    count: 1, status: 'open', plan: null, createdAt: Date.now(), lastSeen: Date.now(),
+  };
+  persist(); emit();
+  return map[id];
+}
+export function misconceptionsFor(studentId, { status = null, topicId = null } = {}) {
+  const map = state.misconceptions[studentId] || {};
+  return Object.values(map)
+    .filter(m => (!status || m.status === status) && (!topicId || (m.topicId || null) === topicId))
+    .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+}
+export function openMisconceptions(studentId) { return misconceptionsFor(studentId, { status: 'open' }); }
+export function openMisconceptionCount(studentId) { return openMisconceptions(studentId).length; }
+export function resolveMisconception(studentId, id) {
+  const m = (state.misconceptions[studentId] || {})[id];
+  if (m) { m.status = 'resolved'; m.resolvedAt = Date.now(); persist(); emit(); }
+}
+export function setMisconceptionPlan(studentId, id, plan) {
+  const m = (state.misconceptions[studentId] || {})[id];
+  if (m) { m.plan = plan; persist(); emit(); }
+}
 
 // ---- Backup: export / import the whole account ----
 // A backup is the same serialized shape we persist to KV, wrapped with a little

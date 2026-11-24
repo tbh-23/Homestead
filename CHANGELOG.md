@@ -7,6 +7,19 @@ versioning.
 ## [Unreleased]
 
 ### Added
+- **Learner profiles** — an optional, 60-second picture of how each child learns
+  best (preferred modality, pace, reading level, interests, notes). It
+  personalizes AI-generated explanations, lessons, printables, tests, challenges
+  and remediation across the app, and grounds the Homestead Helper's advice.
+  Lessons and printables cache per profile so siblings get their own versions.
+- **Misconception detection** — after a digital test, Homestead classifies *why*
+  each missed question was wrong (the error type, e.g. "regrouping error"),
+  recording recurring mistakes as patterns with a rising count rather than
+  one-off "incorrect" flags.
+- **Targeted remediation** — for each detected error pattern, a one-tap plan
+  (root cause → how to re-teach it → a concrete activity → a check), written for
+  that child's learner profile. Surfaced in a new Insights "Watch areas" card
+  with a dashboard nudge; mark resolved once it clicks.
 - **Year-end portfolio & progress reports** — a printable, PDF-ready report per
   student built entirely from existing account data: mastery by subject, a
   mastery-growth chart, attendance / instruction days, topics mastered with

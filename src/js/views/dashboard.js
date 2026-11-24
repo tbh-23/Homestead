@@ -12,6 +12,7 @@ import { openDuePractice } from './practice.js';
 import { setTimelineSubject } from './timeline.js';
 import { BADGES } from '../game.js';
 import { openKidMode } from './kidmode.js';
+import { learnerProfileCard } from './profile.js';
 
 export function renderDashboard(params, { navigate }) {
   const active = store.activeStudent();
@@ -40,6 +41,24 @@ export function renderDashboard(params, { navigate }) {
   root.querySelector('#qtime').onclick = () => navigate('timeline');
   root.querySelector('#qmic').onclick = () => openRecorder(active.id);
   root.querySelector('#qrec').onclick = () => openRecordForm(active.id);
+
+  // Learner profile (prompt to set up, or a compact summary + edit)
+  root.appendChild(learnerProfileCard(active));
+
+  // Error-pattern nudge: the "background tutor" surfacing detected misconceptions
+  const openMis = store.openMisconceptionCount(active.id);
+  if (openMis) {
+    const mb = el(`<button class="w-full text-left rounded-2xl border border-[#b0603a]/30 bg-[#fbf4ea] p-4 mb-6 flex items-center gap-3 hover:bg-[#f7ecdc] transition-colors">
+      <span class="w-10 h-10 rounded-xl bg-[#b0603a]/15 flex items-center justify-center shrink-0"><i data-lucide="search-check" class="w-5 h-5 text-[#b0603a]"></i></span>
+      <span class="flex-1 min-w-0">
+        <span class="block font-600 text-sm">${openMis} error pattern${openMis > 1 ? 's' : ''} spotted for ${esc(active.name)}</span>
+        <span class="block text-xs text-ink-soft">Homestead noticed recurring mistakes — see them and get a targeted plan.</span>
+      </span>
+      <i data-lucide="chevron-right" class="w-4 h-4 text-ink-faint shrink-0"></i>
+    </button>`);
+    mb.onclick = () => navigate('insights');
+    root.appendChild(mb);
+  }
 
   // Adaptive suggestion nudge
   const pending = store.pendingSuggestions(active.id);

@@ -28,19 +28,42 @@ function toHtml(text) {
 
 const US_SPELLING = ' Always write in American English spelling (e.g. "practice", "artifact", "color", "organize", "labeled", "favorite", "math", "recognize", "center").';
 
+// Turn a learner profile into a short personalization instruction appended to a
+// prompt. Every field is optional; returns '' when there's nothing to personalize.
+const MODALITY_HINT = {
+  visual: 'Lean on visual explanations — pictures, diagrams, colors, spatial layouts.',
+  hands_on: 'Lean on hands-on, concrete examples the child can touch, move or act out.',
+  verbal: 'Lean on talking it through — stories, discussion, read-aloud, rhymes.',
+  reading: 'Lean on reading and writing — written steps, lists, labeling.',
+};
+export function learnerPrompt(profile) {
+  if (!profile) return '';
+  const bits = [];
+  if (profile.modality && MODALITY_HINT[profile.modality]) bits.push(MODALITY_HINT[profile.modality]);
+  if (profile.pace === 'slower') bits.push('Go gently: smaller steps, more worked examples, extra encouragement.');
+  else if (profile.pace === 'faster') bits.push('This child moves quickly: keep it brisk and add a little extra stretch.');
+  if (profile.readingLevel) bits.push(`Pitch reading/vocabulary at a ${profile.readingLevel} reading level.`);
+  const interests = Array.isArray(profile.interests) ? profile.interests : (profile.interests ? [profile.interests] : []);
+  if (interests.length) bits.push(`Weave in their interests where it fits naturally: ${interests.join(', ')}.`);
+  if (profile.attention === 'short') bits.push('Keep activities short and well-chunked; attention can be brief.');
+  if (profile.notes) bits.push(`Also keep in mind: ${profile.notes}.`);
+  if (!bits.length) return '';
+  return `\n\nPERSONALIZE FOR THIS LEARNER (adapt wording, examples and difficulty while staying accurate and on-level): ${bits.join(' ')}`;
+}
+
 async function ask(prompt) {
   const res = await puter.ai.chat(prompt + US_SPELLING, { model: 'gpt-4o-mini' });
   const text = typeof res === 'string' ? res : (res?.message?.content || res?.text || String(res));
   return toHtml(text);
 }
 
-export function aiExplain(topic, childName) {
+export function aiExplain(topic, childName, profile = null) {
   const name = childName || 'a young learner';
-  return ask(`You are a warm, expert homeschool tutor. Explain the topic "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}) in simple, friendly language a parent can read aloud to ${name}. Topic description: ${topic.description}. Keep it under 160 words. Use one everyday analogy and end with a single sentence a parent could say to check understanding. Use short paragraphs.`);
+  return ask(`You are a warm, expert homeschool tutor. Explain the topic "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}) in simple, friendly language a parent can read aloud to ${name}. Topic description: ${topic.description}. Keep it under 160 words. Use one everyday analogy and end with a single sentence a parent could say to check understanding. Use short paragraphs.` + learnerPrompt(profile));
 }
 
-export function aiQuiz(topic, childName) {
-  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.`);
+export function aiQuiz(topic, childName, profile = null) {
+  return ask(`Create a short 4-question mini-quiz to check mastery of "${topic.name}" (${topic.subject}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}). Description: ${topic.description}. Mastery evidence: ${(topic.evidence||[]).join('; ')}. Mix question types (recall, apply, explain). Number the questions. After the questions add a short "**Answers**" section. Keep it concise and age-appropriate.` + learnerPrompt(profile));
 }
 
 // ---- Structured lesson generation ----
@@ -201,7 +224,7 @@ Return ONLY valid JSON (no markdown):
 }
 
 // A complete, ready-to-teach lesson for a single topic.
-export function aiLesson(topic, childName) {
+export function aiLesson(topic, childName, profile = null) {
   const name = childName || 'your child';
   const prompt =
 `You are an expert homeschool curriculum writer. Write a complete, ready-to-teach lesson a parent can use TODAY with ${name} on the topic "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}).
@@ -229,13 +252,13 @@ Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
   "masteryCheck": "one concrete thing the child should be able to do to show they've mastered it",
   "extension": "an optional harder challenge for children ready to go further"
 }
-Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
+Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.` + learnerPrompt(profile);
   return askJson(prompt);
 }
 
 // Ready-to-print materials for a topic. The AI picks the 2-3 formats that need
 // the LEAST parent prep while being genuinely useful for this specific topic.
-export function aiPrintables(topic, childName) {
+export function aiPrintables(topic, childName, profile = null) {
   const prompt =
 `You are a homeschool materials designer. Create ready-to-print materials for teaching "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}).
 Topic description: ${topic.description}
@@ -255,7 +278,7 @@ Return ONLY valid JSON (no markdown) matching:
     { "type": "worksheet|flashcards|matching|tracing|sorting", "title": "clear title", "forParent": "one sentence on how to use it and why it's easy prep", "content": { ... matching the type above ... } }
   ]
 }
-Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.`;
+Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.` + learnerPrompt(profile);
   return askJson(prompt);
 }
 
@@ -282,7 +305,7 @@ Use specific, real examples. Keep it practical and age-appropriate.`;
 // (printable paper test / hands-on observation checklist).
 // `section` (optional) narrows it to one domain/age unit; otherwise it's a
 // final subject-wide test.
-export function aiMasteryTest({ subject, age, topicNames, mode, section, topic, level }) {
+export function aiMasteryTest({ subject, age, topicNames, mode, section, topic, level, profile = null }) {
   const digital = mode === 'digital';
   const advanced = level === 'advanced';
   const isTopic = !!topic;
@@ -329,14 +352,14 @@ Return ONLY valid JSON (no markdown) matching exactly:
   "estimatedMinutes": <number>,
   "questions": [ ... ${count} questions using the shapes above, ordered easiest-first ... ]
 }
-Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.`;
+Use real, specific, age-appropriate content (actual numbers, words, examples) — never placeholders.` + learnerPrompt(profile);
   return askJson(prompt, TEST_MODEL).then(normalizeTest).then(verifyTest).then(normalizeTest);
 }
 
 // A timed "challenge" quiz taken AFTER a topic is mastered. Designed to stretch
 // without frustrating: same core skill but slightly bigger numbers / minor
 // concepts from what comes next. All multiple_choice for fast, fair grading.
-export function aiChallenge({ subject, age, topic, nextHint }) {
+export function aiChallenge({ subject, age, topic, nextHint, profile = null }) {
   const prompt =
 `You are an expert homeschool assessor creating a fun, TIMED "challenge" quiz for a child aged ${age} who has ALREADY mastered "${topic.name}" (${subject} > ${topic.domain}). Description: ${topic.description || ''}.
 This is a stretch, not a trap: keep it enjoyable and doable, roughly 10-20% harder than the mastery test. Ways to stretch: slightly bigger numbers, an extra step, or a small taste of the next concept${nextHint ? ` (e.g. ${nextHint})` : ''}.
@@ -353,13 +376,13 @@ Question shape:
 
 Return ONLY valid JSON (no markdown):
 { "title": "${topic.name} — Challenge", "questions": [ ...8 multiple_choice items... ] }
-Use real, specific, age-appropriate content — never placeholders.`;
+Use real, specific, age-appropriate content — never placeholders.` + learnerPrompt(profile);
   return askJson(prompt, TEST_MODEL).then(t => { t.questions = (t.questions || []).map(q => ({ ...q, type: 'multiple_choice' })); return t; }).then(normalizeTest).then(verifyTest).then(normalizeTest);
 }
 
 // Active-recall cards for a topic: short question -> concise answer prompts the
 // child answers from memory (retrieval practice). Returned as plain Q/A pairs.
-export function aiRecallCards(topic, age) {
+export function aiRecallCards(topic, age, profile = null) {
   const prompt =
 `You are an expert tutor creating ACTIVE RECALL flashcards for "${topic.name}" (${topic.subject} > ${topic.domain}, ages ${topic.ageRangeStart}-${topic.ageRangeEnd}) for a child aged ${age}.
 Topic description: ${topic.description || ''}
@@ -375,7 +398,7 @@ Rules:
 
 Return ONLY valid JSON (no markdown):
 { "cards": [ { "front": "...", "back": "...", "hint": "..." } ] }
-Use real, specific content — never placeholders.`;
+Use real, specific content — never placeholders.` + learnerPrompt(profile);
   return askJson(prompt, TEST_MODEL).then(data => {
     const cards = (data && Array.isArray(data.cards)) ? data.cards : [];
     return cards
@@ -452,4 +475,50 @@ Write a warm, specific review with these sections using bold headings:
 **Watch areas** — 2 short bullets referencing the records/questions where possible.
 **What to do next** — 3 concrete, doable suggestions for the coming week (activities, revisit a topic, etc.).
 Keep the whole thing under 220 words, encouraging and jargon-free.`);
+}
+
+// ---- Misconception detection + remediation ----
+
+// Classify WHY a child got each missed question wrong — the *type* of error
+// (a reusable misconception), not just "incorrect". Returns one tagged item per
+// miss. Uses the cheaper model since this runs automatically after each test.
+export function aiMisconceptions({ subject, age, topicName, misses }) {
+  const items = (misses || []).map(m => ({
+    n: m.n,
+    question: m.q,
+    options: m.options || undefined,
+    childAnswer: m.chosen,
+    correctAnswer: m.correct,
+  }));
+  const prompt =
+`You are a diagnostic teacher reviewing a child's (age ${age}) wrong answers on a ${subject}${topicName ? ` test about "${topicName}"` : ' test'}. For EACH item, infer the most likely underlying MISCONCEPTION or error type — the reusable misunderstanding behind the wrong answer, not just "got it wrong". Examples of good error types: "regrouping/borrowing error in subtraction", "confuses area with perimeter", "place-value misunderstanding", "reads the operation sign wrong", "off-by-one counting". If a miss looks like a careless slip with no clear pattern, use category "careless-slip".
+
+Items (JSON):
+${JSON.stringify(items)}
+
+Return ONLY valid JSON (no markdown):
+{ "misconceptions": [ { "n": <item number>, "category": "<2-4 word kebab-case error type>", "label": "<short human-readable name, Title case>", "why": "<one plain sentence: the likely root cause>" } ] }`;
+  return askJson(prompt, 'gpt-4o-mini').then(r => (r && Array.isArray(r.misconceptions)) ? r.misconceptions : []);
+}
+
+// A targeted remediation plan for one detected misconception, written for THIS
+// child's learner profile. Grounded in the known common misconception + the
+// research-backed way to reteach it.
+export function aiRemediation({ studentName, age, subject, topicName, label, why, profile = null }) {
+  const name = studentName || 'the child';
+  const prompt =
+`You are an expert tutor. ${name} (age ${age}) is repeatedly making this specific error in ${subject}${topicName ? ` (topic: "${topicName}")` : ''}:
+Error type: "${label}". Likely cause: ${why || 'unclear from the data'}.
+
+Give the PARENT a short, concrete remediation plan that targets THIS misconception specifically — not generic advice. Draw on how experienced teachers actually fix this common error.
+
+Return ONLY valid JSON (no markdown):
+{
+  "rootCause": "1-2 sentences: what the child most likely misunderstands, in plain language",
+  "reteach": "2-3 sentences: the single best way to re-explain/reframe it so it clicks (a specific approach, representation, or manipulative)",
+  "activity": { "title": "short name", "steps": ["do this", "then this", "then this"] },
+  "check": "one concrete question or task to confirm the misconception is fixed"
+}
+Be specific and practical — real numbers, words and objects, never placeholders.` + learnerPrompt(profile);
+  return askJson(prompt);
 }

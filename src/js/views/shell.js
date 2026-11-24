@@ -3,6 +3,7 @@ import { el, esc, initials, openModal, toast } from '../ui.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
 import { openSettings } from './settings.js';
+import { openProfileEditor } from './profile.js';
 
 const NAV = [
   { name: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
@@ -142,8 +143,10 @@ function openStudentMenu(navigate) {
         <p class="text-xs text-ink-faint">Age ${age} · born ${s.birthYear}</p>
       </div>
       ${isActive ? '<span class="text-xs font-medium text-brand-dark px-2 py-0.5 rounded-full bg-brand/10">Active</span>' : '<button class="select text-xs font-medium text-ink-soft px-2.5 py-1 rounded-lg border border-paper-line hover:border-brand/40">Switch</button>'}
+      <button class="prof text-ink-faint hover:text-brand-dark p-1" title="How ${esc(s.name)} learns"><i data-lucide="user-cog" class="w-4 h-4"></i></button>
       <button class="del text-ink-faint hover:text-[#b0413a] p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </div>`);
+    row.querySelector('.prof').addEventListener('click', () => { m.close(); openProfileEditor(s.id); });
     row.querySelector('.select')?.addEventListener('click', () => { store.setActiveStudent(s.id); m.close(); toast('Switched to ' + s.name); });
     row.querySelector('.del').addEventListener('click', () => {
       if (confirm(`Remove ${s.name}? This deletes their progress and records.`)) { store.removeStudent(s.id); m.close(); }

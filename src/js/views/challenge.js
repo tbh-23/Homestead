@@ -55,6 +55,7 @@ export async function openChallenge(topic) {
       const test = await aiChallenge({
         subject: topic.subject, age: (topic.ageRangeStart || store.studentAge(student)),
         topic, nextHint: nextConceptHint(topic),
+        profile: store.getProfile(student.id),
       });
       if (!test.questions || !test.questions.length) throw new Error('no questions');
       runQuiz(test);

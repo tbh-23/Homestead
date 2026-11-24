@@ -384,7 +384,7 @@ function aiSection(t, student) {
     const loading = el(`<div class="flex items-center gap-2 text-sm text-ink-soft py-2"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>${label}</div>`);
     out.appendChild(loading);
     try {
-      const text = await fn(t, student?.name);
+      const text = await fn(t, student?.name, student ? store.getProfile(student.id) : null);
       out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${text}</div>`;
     } catch (e) {
       out.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't generate that right now. Please try again.</p>`;

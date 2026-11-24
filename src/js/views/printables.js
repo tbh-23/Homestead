@@ -29,11 +29,11 @@ export async function openPrintables(topic) {
   stage.appendChild(loadingBlock('Preparing the easiest print-and-go materials\u2026', 'Made once, then saved for reuse.'));
   refreshIcons();
 
-  const cacheId = 'print:' + topic.id;
+  const cacheId = 'print:' + topic.id + ':' + (student ? store.profileSignature(student.id) : '0');
   try {
     let data = await store.getCachedLesson(cacheId);
     if (!data) {
-      data = await aiPrintables(topic, student?.name);
+      data = await aiPrintables(topic, student?.name, student ? store.getProfile(student.id) : null);
       await store.saveCachedLesson(cacheId, data);
     }
     const printables = (data && data.printables) || [];

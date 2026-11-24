@@ -2,7 +2,7 @@ import { SUBJECTS, getData } from '../data.js';
 import * as store from '../store.js';
 import { el, esc, refreshIcons, toast } from '../ui.js';
 import { studentStats, recentActivity, recommendedNext, subjectTestReady } from '../mastery.js';
-import { aiFeedback } from '../ai.js';
+import { aiFeedback, aiRemediation } from '../ai.js';
 import { openMasteryTest } from './masterytest.js';
 import { fmtDate } from '../ui.js';
 import { applySuggestion, dismissSuggestion } from '../adapt.js';
@@ -61,6 +61,12 @@ export function renderInsights(params, { navigate }) {
       activeWrap.appendChild(chips);
     }
     root.appendChild(adCard);
+  }
+
+  // Watch areas: detected error patterns (misconceptions) + targeted remediation
+  const openMis = store.openMisconceptions(active.id);
+  if (openMis.length) {
+    root.appendChild(misconceptionsCard(active, navigate));
   }
 
   const stats = studentStats(active.id);
@@ -200,6 +206,70 @@ export function renderInsights(params, { navigate }) {
 
   refreshIcons();
   return root;
+}
+
+// ---- Watch areas: misconceptions + targeted remediation ----
+function misconceptionsCard(active, navigate) {
+  const list = store.openMisconceptions(active.id);
+  const card = el(`<div class="bg-paper-card border border-[#b0603a]/30 rounded-2xl p-5 mb-5">
+    <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="search-check" class="w-4.5 h-4.5 text-[#b0603a]"></i>Watch areas</h2>
+    <p class="text-xs text-ink-soft mb-3">Recurring mistakes Homestead spotted in ${esc(active.name)}'s tests. Get a plan tailored to how they learn, then mark it resolved once it clicks.</p>
+    <div id="mis" class="space-y-2.5"></div>
+  </div>`);
+  const wrap = card.querySelector('#mis');
+  list.forEach(mc => wrap.appendChild(misRow(active, mc, navigate)));
+  return card;
+}
+
+function misRow(active, mc, navigate) {
+  const topic = mc.topicId ? getData().byId.get(mc.topicId) : null;
+  const row = el(`<div class="rounded-xl border border-paper-line bg-paper p-3.5">
+    <span class="text-sm font-600 flex items-center gap-1.5 flex-wrap">${esc(mc.label)}
+      ${mc.count > 1 ? `<span class="text-[11px] font-700 px-1.5 py-0.5 rounded-full bg-[#b0603a]/15 text-[#b0603a]">seen ${mc.count}×</span>` : ''}
+    </span>
+    <span class="block text-xs text-ink-faint mt-0.5">${esc(mc.subject || '')}${topic ? ' · ' + esc(topic.name) : ''}</span>
+    ${mc.why ? `<span class="block text-xs text-ink-soft mt-1 leading-relaxed">${esc(mc.why)}</span>` : ''}
+    <div class="plan mt-2.5"></div>
+    <div class="acts flex items-center gap-2 mt-2.5"></div>
+  </div>`);
+  const planWrap = row.querySelector('.plan');
+  const acts = row.querySelector('.acts');
+  const showPlan = (plan) => { planWrap.innerHTML = ''; planWrap.appendChild(renderPlan(plan)); refreshIcons(); };
+  if (mc.plan) showPlan(mc.plan);
+
+  const planBtn = el(`<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors"><i data-lucide="wand-2" class="w-3.5 h-3.5"></i>${mc.plan ? 'Regenerate plan' : 'Get a plan'}</button>`);
+  planBtn.onclick = async () => {
+    planBtn.disabled = true;
+    planWrap.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-2"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Building a plan for ${esc(active.name)}…</div>`;
+    refreshIcons();
+    try {
+      const plan = await aiRemediation({
+        studentName: active.name, age: store.studentAge(active), subject: mc.subject,
+        topicName: topic ? topic.name : null, label: mc.label, why: mc.why,
+        profile: store.getProfile(active.id),
+      });
+      store.setMisconceptionPlan(active.id, mc.id, plan);
+      showPlan(plan);
+    } catch (e) {
+      planWrap.innerHTML = `<p class="text-sm text-[#b0413a]">Couldn't build a plan right now. Please try again.</p>`;
+    }
+    planBtn.disabled = false;
+  };
+  const resolveBtn = el(`<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-paper-line text-sm font-medium hover:border-brand/40 transition-colors"><i data-lucide="check" class="w-3.5 h-3.5"></i>Mark resolved</button>`);
+  resolveBtn.onclick = () => { store.resolveMisconception(active.id, mc.id); toast('Marked resolved — nice work', 'success'); navigate('insights'); };
+  acts.appendChild(planBtn); acts.appendChild(resolveBtn);
+  return row;
+}
+
+function renderPlan(plan) {
+  if (!plan || typeof plan !== 'object') return el('<span></span>');
+  const steps = (plan.activity && Array.isArray(plan.activity.steps)) ? plan.activity.steps : [];
+  return el(`<div class="rounded-xl bg-brand-light/40 border border-brand/20 p-3 space-y-2 text-sm">
+    ${plan.rootCause ? `<p><span class="font-600 text-brand-dark">Root cause:</span> ${esc(plan.rootCause)}</p>` : ''}
+    ${plan.reteach ? `<p><span class="font-600 text-brand-dark">Try this:</span> ${esc(plan.reteach)}</p>` : ''}
+    ${(plan.activity && plan.activity.title) ? `<div><p class="font-600 text-brand-dark">${esc(plan.activity.title)}</p>${steps.length ? `<ol class="list-decimal list-inside text-ink-soft mt-0.5 space-y-0.5">${steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}</div>` : ''}
+    ${plan.check ? `<p><span class="font-600 text-brand-dark">Check it clicked:</span> ${esc(plan.check)}</p>` : ''}
+  </div>`);
 }
 
 function statBox(n, label, color) {

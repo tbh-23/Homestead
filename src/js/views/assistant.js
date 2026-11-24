@@ -25,10 +25,24 @@ function buildContext() {
   const recentRecords = store.recordsFor(s.id).slice(0, 5)
     .map(r => `${r.type}: ${(r.note || r.title || '').slice(0, 80)}`).filter(Boolean);
 
+  // Learner profile + detected error patterns, so the Helper coaches to THIS child.
+  const profile = store.getProfile(s.id);
+  const profileBits = [];
+  if (profile.modality) profileBits.push(`learns best ${String(profile.modality).replace('_', '-')}`);
+  if (profile.pace) profileBits.push(`${profile.pace} pace`);
+  if (profile.readingLevel) profileBits.push(`${profile.readingLevel} reading level`);
+  const interests = Array.isArray(profile.interests) ? profile.interests : (profile.interests ? [profile.interests] : []);
+  if (interests.length) profileBits.push(`interests: ${interests.join(', ')}`);
+  if (profile.notes) profileBits.push(profile.notes);
+  const openMis = store.openMisconceptions(s.id).slice(0, 5)
+    .map(m => `${m.label}${m.count > 1 ? ` (seen ${m.count}×)` : ''}`);
+
   return [
     `Student: ${s.name}, age ${age}.`,
     `Overall mastery ${stats.pct}%. By subject: ${per}.`,
     inProgress.length ? `Currently working on: ${inProgress.join('; ')}.` : 'No topics currently in progress.',
+    profileBits.length ? `How ${s.name} learns: ${profileBits.join('; ')}. Tailor advice to this.` : '',
+    openMis.length ? `Detected error patterns to help with: ${openMis.join('; ')}.` : '',
     recentRecords.length ? `Recent parent notes — ${recentRecords.join(' | ')}.` : '',
   ].filter(Boolean).join('\n');
 }
