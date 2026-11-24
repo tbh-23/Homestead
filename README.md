@@ -25,6 +25,12 @@ teaching one or more children.
   repetition from facts to problem-solving.
 - **Adaptivity** — timed challenges and parent-approved difficulty increases when
   a child excels.
+- **Learner profiles** — tell Homestead how each child learns best (modality,
+  pace, reading level, interests), and every AI-generated lesson, explanation,
+  test and tip is personalized to them — a tutor shaped to the child.
+- **Misconception detection & remediation** — after a digital test, Homestead
+  works out *why* each wrong answer was wrong, surfaces recurring error patterns,
+  and offers a one-tap, profile-personalized plan to fix each one.
 - **Adaptive daily calendar** — a day-by-day plan you can reschedule, mark done,
   and add extra practice to.
 - **Records & voice analysis** — log observations and record lesson conversations
@@ -97,6 +103,26 @@ classroom effect aren't always the same size.
   did not reach significance for those students — see [Retrieval practice
   enhances learning in real primary school settings, whether distributed or
   not](https://pmc.ncbi.nlm.nih.gov/articles/PMC12372469/).
+
+## A tutor shaped to the child
+
+Homestead closes a simple loop: **know the child → notice the error → prescribe
+the fix.**
+
+1. **Learner profile.** A quick, optional profile (how they learn, pace, reading
+   level, interests) is woven into every AI prompt, so lessons, explanations,
+   tests and printables are written for *this* child — down to using their
+   interests in the examples.
+2. **Misconception detection.** When a child misses questions on a digital test,
+   Homestead classifies the *type* of error behind each one and logs recurring
+   mistakes as patterns, not just "wrong answers."
+3. **Targeted remediation.** For each pattern, one tap produces a plan — the
+   likely root cause, the best way to re-teach it, a concrete activity, and a
+   check — personalized to the child's profile. The Homestead Helper sees these
+   patterns too, so its coaching stays specific.
+
+It runs quietly in the background and keeps a family's data private — detection
+and remediation use research-grounded prompting, with no cross-family data.
 
 ## Commune — shared teaching
 

@@ -5,6 +5,7 @@ import { aiMasteryTest } from '../ai.js';
 import { studentStats } from '../mastery.js';
 import { openChallenge } from './challenge.js';
 import { award } from '../game.js';
+import { detectMisconceptions } from '../misconceptions.js';
 
 const PASS = 90;
 
@@ -144,6 +145,7 @@ function renderIntro(stage, subject, student, m, section = null, topic = null) {
         section: isSection ? `${section.domain} (age ${section.age})` : null,
         topic: isTopic ? topic : null,
         level,
+        profile: store.getProfile(student.id),
       });
       test.mode = mode;
       test.subject = subject;
@@ -358,6 +360,22 @@ function renderResult(stage, subject, student, test, graded, m, digitalReview) {
         sourceLabel: isTopic ? topic.name : isSection ? section.domain : subject,
       });
     });
+  }
+
+  // Diagnose error PATTERNS from the missed questions — the "background tutor"
+  // noticing *why* answers were wrong. Digital only (we need the child's actual
+  // answers). Runs in the background; never blocks the result screen.
+  if (digitalReview && digitalReview.questions && graded.perQ) {
+    const misses = [];
+    digitalReview.questions.forEach((q, i) => {
+      if (!graded.perQ[i] || graded.perQ[i].correct) return;
+      const chosen = q.type === 'multiple_choice'
+        ? ((q.options || [])[digitalReview.answers[i]] ?? '(blank)')
+        : (digitalReview.answers[i] || '(blank)');
+      const correct = q.type === 'multiple_choice' ? ((q.options || [])[q.answer] ?? '') : (q.answer ?? '');
+      misses.push({ q: q.q, options: q.options || null, chosen, correct });
+    });
+    if (misses.length) detectMisconceptions(student, subject, topic, misses);
   }
 
   // Award XP + badges for a pass (celebration fires after the result renders).
