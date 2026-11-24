@@ -17,9 +17,13 @@ const DEFAULT_MODE = {
   'History': 'digital',
   'Computing': 'digital',
   'Learning to Learn': 'digital',
+  'Geography': 'digital',
+  'Français': 'digital',
   'English': 'physical',
   'Personal & Social Development': 'physical',
   'Life Skills': 'physical',
+  'Art & Design': 'physical',
+  'Performing Arts': 'physical',
 };
 
 function pointsOf(q) { return q.points || 1; }

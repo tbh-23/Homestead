@@ -12,6 +12,10 @@ export const SUBJECTS = {
   'Life Skills':                  { color: '#c08a2e', icon: 'sprout' },
   'Computing':                    { color: '#4a7a86', icon: 'cpu' },
   'Learning to Learn':            { color: '#a3486b', icon: 'brain' },
+  'Geography':                    { color: '#3a7d6b', icon: 'globe' },
+  'Art & Design':                 { color: '#b5546e', icon: 'palette' },
+  'Performing Arts':              { color: '#7c5bbf', icon: 'drama' },
+  'Français':                     { color: '#5a7aa8', icon: 'languages' },
 };
 
 export const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -32,10 +36,11 @@ export async function loadTaxonomy() {
   const clustersJson = clustersRes.ok ? await clustersRes.json() : { clusters: [] };
   const manifest = (manifestRes && manifestRes.ok) ? await manifestRes.json() : null;
 
-  // Keep only topics in subjects the app actually supports. The upstream taxonomy
-  // can add subjects beyond our 8 (e.g. Geography, Art & Design); letting those
-  // through crashes views that look up SUBJECTS[t.subject] (the map has no entry),
-  // so we drop them here, at the source, rather than guarding every call site.
+  // Keep only topics in subjects the app supports (the SUBJECTS map above).
+  // Forward-compat safety net: if the upstream taxonomy adds a brand-new subject
+  // we haven't styled yet, those topics are skipped here rather than crashing
+  // every view that looks up SUBJECTS[t.subject] for a color/icon. To support a
+  // new subject, add it to SUBJECTS and it flows through automatically.
   const allTopics = topicsJson.topics || topicsJson;
   const topics = allTopics.filter(t => t && SUBJECTS[t.subject]);
   const dependencies = depsJson.dependencies || depsJson;
