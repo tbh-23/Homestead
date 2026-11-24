@@ -32,10 +32,17 @@ export async function loadTaxonomy() {
   const clustersJson = clustersRes.ok ? await clustersRes.json() : { clusters: [] };
   const manifest = (manifestRes && manifestRes.ok) ? await manifestRes.json() : null;
 
-  const topics = topicsJson.topics || topicsJson;
+  // Keep only topics in subjects the app actually supports. The upstream taxonomy
+  // can add subjects beyond our 8 (e.g. Geography, Art & Design); letting those
+  // through crashes views that look up SUBJECTS[t.subject] (the map has no entry),
+  // so we drop them here, at the source, rather than guarding every call site.
+  const allTopics = topicsJson.topics || topicsJson;
+  const topics = allTopics.filter(t => t && SUBJECTS[t.subject]);
   const dependencies = depsJson.dependencies || depsJson;
   const clusters = clustersJson.clusters || [];
 
+  // byId only contains kept topics, so the dependency loop below (which guards on
+  // byId.has) naturally drops any edge pointing at a filtered-out subject.
   const byId = new Map(topics.map(t => [t.id, t]));
 
   // Prerequisite edges: topicId depends on prerequisiteId
