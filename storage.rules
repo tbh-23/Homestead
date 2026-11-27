@@ -5,7 +5,10 @@ service firebase.storage {
     function isFamilyMember() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in ['simonguerin@gmail.com'];
+        && request.auth.token.email is string
+        && hashing.sha256(request.auth.token.email.lower().toUtf8()).toHexString() in [
+          '3630ac935b7662b92f7637f6ca90495fd5fe6d1fb563ae61e4a143d7c4b43edf'
+        ];
     }
 
     function isSafeAudioType() {

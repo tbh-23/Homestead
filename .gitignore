@@ -52,3 +52,5 @@ tests/e2e/.cache/
 # Firebase Hosting build output and local Firebase CLI cache.
 dist/
 .firebase/
+.firebase-webapp.json
+.firebaserc

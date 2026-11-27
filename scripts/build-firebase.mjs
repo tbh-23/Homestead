@@ -28,16 +28,22 @@ async function collectFigures(figuresDir) {
   return figures;
 }
 
+const DEFAULT_ALLOWED_EMAIL_HASHES = [
+  '3630ac935b7662b92f7637f6ca90495fd5fe6d1fb563ae61e4a143d7c4b43edf',
+];
+
 async function resolveFirebaseWebappConfig(rootDir, env = process.env) {
   const rawEnv = String(env.HARRINGTON_FIREBASE_CONFIG || '').trim();
   if (rawEnv) {
     const parsed = JSON.parse(rawEnv);
-    return { allowedEmails: ['simonguerin@gmail.com'], ...parsed };
+    const { allowedEmails: _drop, ...safe } = parsed;
+    return { allowedEmailHashes: DEFAULT_ALLOWED_EMAIL_HASHES, ...safe };
   }
   try {
     const rawFile = await readFile(join(rootDir, '.firebase-webapp.json'), 'utf8');
     const parsed = JSON.parse(rawFile);
-    return { allowedEmails: ['simonguerin@gmail.com'], ...parsed };
+    const { allowedEmails: _drop, ...safe } = parsed;
+    return { allowedEmailHashes: DEFAULT_ALLOWED_EMAIL_HASHES, ...safe };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;

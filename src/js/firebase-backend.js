@@ -7,10 +7,12 @@ import { validateDocument } from './document.js';
 import { activeFirebaseConfig } from './firebase-config.js';
 import { redactNames } from './redact.js';
 import { SCHEMA_VERSION, schemaVersionOf } from './schema.js';
-import { el, esc, openModal } from './ui.js';
+import { el, openModal } from './ui.js';
 
 const AUTH_STORAGE_KEY = 'harrington:firebaseAuth';
-const DEFAULT_ALLOWED_EMAILS = ['simonguerin@gmail.com'];
+const DEFAULT_ALLOWED_EMAIL_HASHES = [
+  '3630ac935b7662b92f7637f6ca90495fd5fe6d1fb563ae61e4a143d7c4b43edf',
+];
 const DEFAULT_AI_TIMEOUT_MS = 180_000;
 const MAX_TIMEOUT_MS = 3_600_000;
 const MAX_API_KEY = 512;
@@ -177,16 +179,33 @@ function writeStorage(key, value) {
 }
 
 function allowedEmailSet(cfg) {
-  const list = Array.isArray(cfg?.allowedEmails) && cfg.allowedEmails.length
-    ? cfg.allowedEmails
-    : DEFAULT_ALLOWED_EMAILS;
+  const list = Array.isArray(cfg?.allowedEmails) ? cfg.allowedEmails : [];
   return new Set(list.map((e) => String(e || '').trim().toLowerCase()).filter(Boolean));
 }
 
-function assertAllowedEmail(email, cfg, emailVerified = true) {
+function allowedEmailHashSet(cfg) {
+  const list = Array.isArray(cfg?.allowedEmailHashes) && cfg.allowedEmailHashes.length
+    ? cfg.allowedEmailHashes
+    : DEFAULT_ALLOWED_EMAIL_HASHES;
+  return new Set(list.map((h) => String(h || '').trim().toLowerCase()).filter(Boolean));
+}
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(String(text || ''));
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function assertAllowedEmail(email, cfg, emailVerified = true) {
   const normalised = String(email || '').trim().toLowerCase();
-  if (!normalised || !allowedEmailSet(cfg).has(normalised)) {
-    throw Object.assign(new Error('This Google account is not on the family allowlist for Harrington.'), { status: 403 });
+  if (!normalised) {
+    throw Object.assign(new Error('This account is not on the invite-only beta allowlist for Harrington.'), { status: 403 });
+  }
+  const directEmails = allowedEmailSet(cfg);
+  const hashSet = allowedEmailHashSet(cfg);
+  const matched = directEmails.has(normalised) || hashSet.has(await sha256Hex(normalised));
+  if (!matched) {
+    throw Object.assign(new Error('This account is not on the invite-only beta allowlist for Harrington.'), { status: 403 });
   }
   if (emailVerified === false) {
     throw Object.assign(new Error('Please use a verified email address to sign in to Harrington.'), { status: 403 });
@@ -259,7 +278,7 @@ export async function signInWithPassword(email, password, cfgOverride = null, fe
     const code = data?.error?.message || 'Sign-in failed';
     throw Object.assign(new Error(`Could not sign in (${code}).`), { status: response.status || 401 });
   }
-  const verifiedEmail = assertAllowedEmail(data.email || email, cfg, true);
+  const verifiedEmail = await assertAllowedEmail(data.email || email, cfg, true);
   return saveFirebaseSession({
     idToken: data.idToken,
     refreshToken: data.refreshToken || null,
@@ -268,12 +287,12 @@ export async function signInWithPassword(email, password, cfgOverride = null, fe
   });
 }
 
-export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl = globalThis.fetch, requestUri = null) {
+export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl = globalThis.fetch, requestUri = null, sessionId = null) {
   const cfg = activeFirebaseConfig(cfgOverride);
   if (!cfg?.apiKey) throw Object.assign(new Error('Firebase configuration is missing an API key.'), { status: 500 });
-  const origin = requestUri || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+  const origin = requestUri || (typeof window !== 'undefined' ? `${window.location.origin}/` : 'http://localhost');
   const postBody = googleIdToken.includes('=')
-    ? googleIdToken
+    ? (googleIdToken.includes('providerId=') ? googleIdToken : `${googleIdToken}&providerId=google.com`)
     : `id_token=${encodeURIComponent(googleIdToken)}&providerId=google.com`;
   const response = await fetchImpl(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(cfg.apiKey)}`,
@@ -283,6 +302,7 @@ export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl
       body: JSON.stringify({
         postBody,
         requestUri: origin,
+        ...(sessionId ? { sessionId } : {}),
         returnIdpCredential: true,
         returnSecureToken: true,
       }),
@@ -293,13 +313,32 @@ export async function signInWithIdp(googleIdToken, cfgOverride = null, fetchImpl
     const code = data?.error?.message || 'Google sign-in failed';
     throw Object.assign(new Error(`Google sign-in failed (${code}).`), { status: response.status || 401 });
   }
-  const verifiedEmail = assertAllowedEmail(data.email, cfg, data.emailVerified !== false);
+  const verifiedEmail = await assertAllowedEmail(data.email, cfg, data.emailVerified !== false);
   return saveFirebaseSession({
     idToken: data.idToken,
     refreshToken: data.refreshToken || null,
     email: verifiedEmail,
     expiresAt: Date.now() + Number(data.expiresIn || 3600) * 1000,
   });
+}
+
+function extractOAuthPostBody(callbackUrl) {
+  try {
+    const parsed = new URL(callbackUrl);
+    const rawHash = parsed.hash.replace(/^#/, '');
+    const rawQuery = parsed.search.replace(/^\?/, '');
+    const params = new URLSearchParams(rawHash || rawQuery);
+    if (params.get('error')) {
+      throw Object.assign(new Error(`Google sign-in failed (${params.get('error')}).`), { status: 401 });
+    }
+    const idToken = params.get('id_token');
+    if (idToken) return `id_token=${encodeURIComponent(idToken)}&providerId=google.com`;
+    if (rawHash) return `${rawHash}&providerId=google.com`;
+    if (rawQuery) return `${rawQuery}&providerId=google.com`;
+  } catch (err) {
+    if (err?.status) throw err;
+  }
+  return 'providerId=google.com';
 }
 
 export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = globalThis.fetch) {
@@ -321,9 +360,12 @@ export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = glob
   if (!uriRes.ok || !uriData?.authUri) {
     throw Object.assign(new Error('Could not start Google sign-in.'), { status: uriRes.status || 500 });
   }
+  if (uriData.sessionId) writeStorage('harrington:oauthSessionId', uriData.sessionId);
   const popup = window.open(uriData.authUri, 'harrington_firebase_auth', 'width=500,height=640');
   if (!popup) {
-    throw Object.assign(new Error('The sign-in popup was blocked by the browser. Allow popups or sign in below.'), { status: 400 });
+    // Fallback to same-tab redirect on mobile/iPad or when popups are blocked.
+    window.location.assign(uriData.authUri);
+    return new Promise(() => {});
   }
   const callbackUrl = await new Promise((resolve, reject) => {
     const timer = setInterval(() => {
@@ -347,10 +389,11 @@ export async function signInWithGooglePopup(cfgOverride = null, fetchImpl = glob
     }, 200);
   });
   return signInWithIdp(
-    `providerId=google.com`,
+    extractOAuthPostBody(callbackUrl),
     cfg,
     fetchImpl,
-    callbackUrl,
+    continueUri,
+    uriData.sessionId || null,
   );
 }
 
@@ -361,7 +404,6 @@ export function promptFirebaseSignIn(cfgOverride = null, fetchImpl = globalThis.
   if (typeof document === 'undefined' || !document.getElementById('modal-root')) {
     return Promise.reject(Object.assign(new Error('Sign in is required to access family data.'), { status: 401, body: null }));
   }
-  const allowed = [...allowedEmailSet(cfg)].join(', ');
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (fn, value) => {
@@ -372,15 +414,16 @@ export function promptFirebaseSignIn(cfgOverride = null, fetchImpl = globalThis.
     const body = el(`
       <div class="p-6 space-y-4">
         <div>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-light text-brand-dark text-xs font-600 mb-2">Invite-only beta period</div>
           <h2 class="font-display text-xl font-600">Sign in to Harrington</h2>
-          <p class="text-sm text-ink-soft mt-1">Sign in with your allowlisted family account (${esc(allowed)}) to load and save family data.</p>
+          <p class="text-sm text-ink-soft mt-1">Invite-only beta period. Sign in with your invited Gmail or email account to load and save family data.</p>
         </div>
         <div id="fb-auth-err" class="hidden rounded-lg bg-[#a4473a]/10 border border-[#a4473a]/30 px-3 py-2 text-sm text-[#a4473a]"></div>
         <button id="fb-google" type="button" class="w-full px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Sign in with Google</button>
         <form id="fb-pw-form" class="space-y-3 pt-2 border-t border-paper-line">
           <p class="text-xs font-medium text-ink-faint uppercase tracking-wide">Or email &amp; password</p>
-          <input name="email" type="email" required value="${esc([...allowedEmailSet(cfg)][0] || '')}" placeholder="Email address" class="w-full px-3.5 py-2 rounded-lg border border-paper-line bg-paper text-sm" />
-          <input name="password" type="password" required placeholder="Password" class="w-full px-3.5 py-2 rounded-lg border border-paper-line bg-paper text-sm" />
+          <input name="email" type="email" required value="" placeholder="Email address" autocomplete="email" class="w-full px-3.5 py-2 rounded-lg border border-paper-line bg-paper text-sm" />
+          <input name="password" type="password" required placeholder="Password" autocomplete="current-password" class="w-full px-3.5 py-2 rounded-lg border border-paper-line bg-paper text-sm" />
           <button type="submit" class="w-full px-4 py-2 rounded-xl border border-paper-line bg-paper hover:border-brand/40 text-sm font-medium">Sign in with email</button>
         </form>
         <details class="text-xs text-ink-soft">
@@ -447,11 +490,22 @@ export async function ensureFirebaseSession(cfgOverride = null, fetchImpl = glob
   const cfg = activeFirebaseConfig(cfgOverride);
   if (!cfg) throw Object.assign(new Error('Firebase is not configured.'), { status: 500 });
   if (cfg.idToken && !forceRefresh) {
-    return { idToken: cfg.idToken, refreshToken: cfg.refreshToken || null, email: cfg.email || DEFAULT_ALLOWED_EMAILS[0], expiresAt: Date.now() + 3600_000 };
+    return { idToken: cfg.idToken, refreshToken: cfg.refreshToken || null, email: cfg.email || null, expiresAt: Date.now() + 3600_000 };
+  }
+  // If returning from a top-level Google OAuth redirect (#state=...&id_token=...),
+  // exchange the token immediately and clean the URL hash.
+  if (typeof window !== 'undefined' && window.location?.hash?.includes('id_token=')) {
+    const href = window.location.href;
+    const savedSessionId = readStorage('harrington:oauthSessionId');
+    writeStorage('harrington:oauthSessionId', null);
+    try {
+      window.history?.replaceState?.(null, '', `${window.location.pathname}${window.location.search}#dashboard`);
+    } catch {}
+    return signInWithIdp(extractOAuthPostBody(href), cfg, fetchImpl, `${window.location.origin}/`, savedSessionId);
   }
   const existing = getFirebaseSession();
   if (existing?.idToken) {
-    if (existing.email) assertAllowedEmail(existing.email, cfg, true);
+    if (existing.email) await assertAllowedEmail(existing.email, cfg, true);
     const needsRefresh = forceRefresh || (existing.expiresAt && existing.expiresAt - Date.now() <= TOKEN_REFRESH_MARGIN_MS);
     if (!needsRefresh) return existing;
     if (existing.refreshToken) {

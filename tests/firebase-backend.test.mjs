@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -28,13 +29,16 @@ import {
 import { SCHEMA_VERSION } from '../src/js/schema.js';
 
 const repoRoot = new URL('..', import.meta.url);
+const TEST_INVITED_EMAIL = 'invited-parent@example.test';
+const TEST_INVITED_EMAIL_HASH = createHash('sha256').update(TEST_INVITED_EMAIL, 'utf8').digest('hex');
+const OWNER_EMAIL_HASH = '3630ac935b7662b92f7637f6ca90495fd5fe6d1fb563ae61e4a143d7c4b43edf';
 const TEST_CFG = {
   apiKey: 'test-api-key',
   authDomain: 'harrington-test.firebaseapp.com',
   projectId: 'harrington-test',
   storageBucket: 'harrington-test.firebasestorage.app',
   appId: '1:123:web:abc',
-  allowedEmails: ['simonguerin@gmail.com'],
+  allowedEmailHashes: [TEST_INVITED_EMAIL_HASH],
   idToken: 'test-id-token',
 };
 
@@ -297,15 +301,17 @@ test('auth helpers, key encoding, and static URL rewrites behave consistently', 
   clearFirebaseSession();
   assert.equal(getFirebaseSession(), null);
 
-  const authFetch = async (url) => {
+  const authFetch = async (url, options = {}) => {
     if (url.includes('signInWithPassword') || url.includes('signInWithIdp')) {
+      const body = options.body ? JSON.parse(options.body) : {};
+      const email = body.email || TEST_INVITED_EMAIL;
       return {
         ok: true,
         status: 200,
         json: async () => ({
           idToken: 'tok-1',
           refreshToken: 'ref-1',
-          email: 'simonguerin@gmail.com',
+          email,
           emailVerified: true,
           expiresIn: '3600',
         }),
@@ -315,13 +321,20 @@ test('auth helpers, key encoding, and static URL rewrites behave consistently', 
   };
 
   const { idToken: _omit, ...noTokenCfg } = TEST_CFG;
-  const pwSession = await signInWithPassword('simonguerin@gmail.com', 'pass', noTokenCfg, authFetch);
+  const pwSession = await signInWithPassword(TEST_INVITED_EMAIL, 'pass', noTokenCfg, authFetch);
   assert.equal(pwSession.idToken, 'tok-1');
   assert.equal((await ensureFirebaseSession(noTokenCfg, authFetch)).idToken, 'tok-1');
 
+  // Uninvited accounts are rejected with 403 even if Firebase Auth returns a token.
+  clearFirebaseSession();
+  await assert.rejects(
+    () => signInWithPassword('stranger@example.test', 'pass', noTokenCfg, authFetch),
+    (err) => err.status === 403 && /invite-only beta allowlist/i.test(err.message),
+  );
+
   clearFirebaseSession();
   const idpSession = await signInWithIdp('google-id-token', noTokenCfg, authFetch, 'http://localhost');
-  assert.equal(idpSession.email, 'simonguerin@gmail.com');
+  assert.equal(idpSession.email, TEST_INVITED_EMAIL);
 
   clearFirebaseSession();
   await assert.rejects(() => signInWithGooglePopup(noTokenCfg, authFetch), /popup sign-in/i);
@@ -374,17 +387,35 @@ test('build-firebase.mjs generates static figures, taxonomy, standards, research
   assert.match(builtConfig, /export function activeFirebaseConfig/);
 });
 
-test('firestore.rules and storage.rules enforce simonguerin@gmail.com allowlist and default deny', async () => {
-  const [firestoreRules, storageRules] = await Promise.all([
+test('firestore.rules, storage.rules, and client sign-in modal enforce SHA-256 invite-only allowlist without exposing plaintext email', async () => {
+  const [firestoreRules, storageRules, firebaseBackendSrc, buildFirebaseSrc, firebaseJson] = await Promise.all([
     readFile(new URL('firestore.rules', repoRoot), 'utf8'),
     readFile(new URL('storage.rules', repoRoot), 'utf8'),
+    readFile(new URL('src/js/firebase-backend.js', repoRoot), 'utf8'),
+    readFile(new URL('scripts/build-firebase.mjs', repoRoot), 'utf8'),
+    readFile(new URL('firebase.json', repoRoot), 'utf8'),
   ]);
 
   assert.match(firestoreRules, /request\.auth\.token\.email_verified == true/);
-  assert.match(firestoreRules, /'simonguerin@gmail\.com'/);
+  assert.match(firestoreRules, new RegExp(OWNER_EMAIL_HASH));
   assert.match(firestoreRules, /match \/\{document=\*\*\}\s*\{\s*allow read, write: if false;/);
 
   assert.match(storageRules, /request\.auth\.token\.email_verified == true/);
-  assert.match(storageRules, /'simonguerin@gmail\.com'/);
+  assert.match(storageRules, new RegExp(OWNER_EMAIL_HASH));
   assert.match(storageRules, /match \/\{allPaths=\*\*\}\s*\{\s*allow read, write: if false;/);
+
+  // Sign-in modal must display "Invite-only beta period" and keep the email input empty by default.
+  assert.match(firebaseBackendSrc, /Invite-only beta period/);
+  assert.match(firebaseBackendSrc, /<input name="email" type="email" required value="" placeholder="Email address"/);
+
+  // Never leak any plaintext gmail address across rules, client bundles, or build scripts.
+  for (const [label, content] of [
+    ['firestore.rules', firestoreRules],
+    ['storage.rules', storageRules],
+    ['src/js/firebase-backend.js', firebaseBackendSrc],
+    ['scripts/build-firebase.mjs', buildFirebaseSrc],
+    ['firebase.json', firebaseJson],
+  ]) {
+    assert.doesNotMatch(content, /@gmail\.com/i, `${label} must not contain a plaintext Gmail address`);
+  }
 });
