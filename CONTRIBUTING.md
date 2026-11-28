@@ -69,7 +69,65 @@ src/docs/GUIDE.md     The full written feature guide
 - Keep the app dependency-free (no bundler, no framework).
 - Use Australian English in user-facing text.
 - Test your change with at least one synthetic student before opening a PR.
-- Before committing, run `npm run check` (dead-code checker, copy and AI-gating tests, a few seconds, no build); `npm test` runs everything.
+- Before committing, run `npm run check` (fast security baseline, isolation,
+  dead-code, copy, and AI-status checks — under 30 seconds, no build);
+  `npm test` runs everything.
+
+## Release and pre-merge checklist
+
+Before cutting a release or merging a PR:
+
+1. Run `npm run check` (must pass with zero failures in under 30 seconds).
+2. Run `npm test` (full build, unit, server, Firebase, and isolation tests).
+3. Run `npm run e2e` (or `npm run ci` to run the full local pipeline, including
+   taxonomy integrity verification and the Docker smoke test).
+4. Review [`SECURITY.md`](SECURITY.md) and
+   [`docs/security/THREAT-MODEL.md`](docs/security/THREAT-MODEL.md) to confirm
+   they accurately describe any changed behaviour or new attack surface.
+5. Update [`CHANGELOG.md`](CHANGELOG.md) under `[Unreleased]`.
+6. **Docker releases:** verify the image runs as non-root (`USER node`, uid
+   `1000`) with no `.env`, `data/`, or baked-in secrets (`npm run ci` checks
+   this automatically when Docker is running).
+7. **Firebase deploys:** run `npm run build:firebase` and verify zero PII or
+   plaintext email addresses appear in `dist/` (and validate `firestore.rules`
+   and `storage.rules` whenever modified).
+
+## Security review rules
+
+Any PR that modifies security-sensitive code — `server.mjs`, `src/js/store.js`,
+`src/js/document.js`, `src/js/pin.js`, `src/js/ai.js`, `src/js/redact.js`,
+`src/js/views/shell.js`, `src/js/firebase-backend.js`, `firestore.rules`,
+`storage.rules`, or E2E auth/safety specs (`tests/e2e/access-token.spec.mjs`,
+`tests/e2e/hostile-import.spec.mjs`, `tests/e2e/data-safety.spec.mjs`) —
+**requires an adversarial security review pass** before merge:
+
+- Test hostile and malformed inputs, boundary lengths, and unexpected types.
+- Verify write-route guards (`refuseCrossSite()`, cookie gate, `If-Match`, and
+  `validateDocument()` / Firestore rules parity).
+- Confirm zero secret, token, API key, or PII leakage in HTTP responses, logs,
+  exports, backups, or built client bundles.
+- Record the adversarial review pass and its checks in the PR body.
+- Any PR that adds a route, a stored field, an external call, or a secret must
+  also update [`docs/security/THREAT-MODEL.md`](docs/security/THREAT-MODEL.md).
+
+### Practices enforced manually (not automated)
+
+Some practices in [`docs/security/PRACTICES.md`](docs/security/PRACTICES.md)
+cannot be fully verified by automated tests and rely on review and release
+discipline:
+
+- **Threat-model judgement (Practice 15):** tests can check that the PR
+  template includes a threat-model checkbox, but deciding whether a change adds
+  a new trust boundary, attacker capability, or data flow requires human review.
+- **Owner sign-off on residual risks (`docs/security/THREAT-MODEL.md` §6 & §9.2):**
+  accepting residual risks (`R1`–`R9`) is a product-owner governance decision.
+- **Host, network, and cloud infrastructure controls:** TLS termination
+  (`Caddy` / `tailscale serve`), host disk encryption (FileVault / LUKS / DSM
+  encrypted folders), off-host encrypted backup media, and live Firebase project
+  configuration sit outside the repository and cannot be verified locally.
+- **Novel logic flaws:** static scans catch known patterns (`esc()`, `ask()`,
+  `refuseCrossSite()`), whereas subtle authorisation or prompt-context edge
+  cases require human adversarial review.
 
 ## Pull requests
 
