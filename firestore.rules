@@ -25,7 +25,8 @@ rules_version = '2';
 //     recall, practice, activity, game, daily, interests, requests, levelset,
 //     reading: map (optional) - per-learner data maps keyed by learner id
 //   Note: Forward-compatible top-level unknown fields from newer Harrington
-//   versions are intentionally preserved (see src/js/schema.js & store.js).
+//   versions are intentionally preserved (see src/js/schema.js & store.js),
+//   capped at 40 total top-level keys to prevent unbounded unknown-key bloat.
 //   Deletion of /families/default is unconditionally forbidden.
 //
 // Subcollection: families/default/lessons
@@ -102,6 +103,7 @@ service cloud.firestore {
 
     function isValidFamilyState(data) {
       return hasRequiredFields(['schemaVersion', 'version', 'updatedAt', 'students'])
+        && data.keys().size() <= 40
         && data.schemaVersion is int
         && data.schemaVersion >= 1
         && data.schemaVersion <= 10

@@ -171,22 +171,22 @@ reading". **[GAPS.md](GAPS.md) has each gap's reproduction steps and
 proposed fix**, so each one can become a ticket. The practices that would
 have prevented them, for HAR-36, are in [PRACTICES.md](PRACTICES.md).
 
-| # | Severity | Gap | Boundary, profile |
-| --- | --- | --- | --- |
-| G1 | **Blocker** | The default loopback server answers any Host name, so DNS rebinding gives any web page read and write access to family data and the AI relay | TB2, P6 |
-| G2 | Major | A recording upload's `Content-Type` is stored and served back inline, so HTML uploaded as a "recording" runs as Harrington; it outlives a token change and comes back with a restore | TB1, P2 with a borrowed or lost signed-in device, P1 |
-| G3 | Major | `/login` has no throttling, no failure log and no entropy floor | TB1, P2 |
-| G4 | Major | Family data leaves the host in plaintext (export, backup, lost laptop) with no warning or guidance | TB6, TB7, P5 |
-| G5 | Minor | `/api/ai` (and lesson and recording writes) skip the `Sec-Fetch-Site` and JSON checks that `/api/state` has | TB2, P6 |
-| G6 | Minor | No Content-Security-Policy or Referrer-Policy on app pages | TB1, TB2, P4, P6 |
-| G7 | Minor | Data folder, files and backups are readable by every local user | TB7 |
-| G8 | Minor | One static 400-day cookie for every device; a lost device can be signed out only by changing the token for everyone | TB1, P5 |
-| G9 | Minor | `includeNotes` is trusted as the request states it | TB4, P4 |
-| G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good (fixed by HAR-55) | TB5 |
-| G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 |
-| G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 |
-| G13 | Minor | Docker image runs as root (fixed by HAR-58) | TB7 |
-| G14 | Minor | A plain `http://` AI base URL on a public host is accepted (by code reading) | TB4, P2 |
+| # | Severity | Gap | Boundary, profile | Status |
+| --- | --- | --- | --- | --- |
+| G1 | **Blocker** | The default loopback server answers any Host name, so DNS rebinding gives any web page read and write access to family data and the AI relay | TB2, P6 | Fixed (`HAR-46`, PR #63) |
+| G2 | Major | A recording upload's `Content-Type` is stored and served back inline, so HTML uploaded as a "recording" runs as Harrington; it outlives a token change and comes back with a restore | TB1, P2 with a borrowed or lost signed-in device, P1 | Fixed (`HAR-47`, PR #63) |
+| G3 | Major | `/login` has no throttling, no failure log and no entropy floor | TB1, P2 | Fixed (`HAR-48`, PR #63) |
+| G4 | Major | Family data leaves the host in plaintext (export, backup, lost laptop) with no warning or guidance | TB6, TB7, P5 | Fixed (`HAR-49`, PR #64) |
+| G5 | Minor | `/api/ai` (and lesson and recording writes) skip the `Sec-Fetch-Site` and JSON checks that `/api/state` has | TB2, P6 | Fixed (`HAR-50`, PR #66) |
+| G6 | Minor | No Content-Security-Policy or Referrer-Policy on app pages | TB1, TB2, P4, P6 | Fixed (`HAR-51`, PR #66) |
+| G7 | Minor | Data folder, files and backups are readable by every local user | TB7 | Fixed (`HAR-52`, PR #66) |
+| G8 | Minor | One static 400-day cookie for every device; a lost device can be signed out only by changing the token for everyone | TB1, P5 | Superseded by Firebase Auth (`HAR-53` canceled, 28 Nov 2026) |
+| G9 | Minor | `includeNotes` is trusted as the request states it | TB4, P4 | Fixed (`HAR-54`, PR #66) |
+| G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good | TB5 | Fixed (`HAR-55`, PR #52) |
+| G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 | In Progress (`HAR-56`) |
+| G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 | In Progress (`HAR-57`) |
+| G13 | Minor | Docker image runs as root | TB7 | Fixed (`HAR-58`, PR #55) |
+| G14 | Minor | A plain `http://` AI base URL on a public host is accepted (by code reading) | TB4, P2 | Fixed (`HAR-59`, PR #66) |
 
 Count: **1 Blocker, 3 Major, 10 Minor.**
 
@@ -292,3 +292,26 @@ Sandbox on the review machine, all secrets fake:
    checked by reading `store.js`, `backend.js` and `redact.js` at the cited
    lines and by calling `redactNames()` with the three name shapes; #37's
    settings gate was read on its head `3eb7e92`.
+
+---
+
+## 9. Firebase-Native Deployment Addendum (`HAR-69`, `australia-southeast2`)
+
+Added 28 November 2026 after Harrington's remote production hosting moved from a self-hosted home NAS to **Everything in Firebase** (`https://harrington-learning-au.web.app`, [PR #67](https://github.com/simgue/harrington/pull/67) & [PR #68](https://github.com/simgue/harrington/pull/68)). Local `node server.mjs` remains unchanged for offline development and the Playwright E2E suite.
+
+### 9.1 Firebase Assets & Trust Boundaries
+
+| # | Boundary / Component | Security Control Enforced | Verification |
+| --- | --- | --- | --- |
+| **FB-1** | **Firebase Hosting CDN** (`firebase.json`, `scripts/build-firebase.mjs`) | Automatic HTTPS TLS; pre-verified Marble taxonomy & 1,049 teaching guides built at deploy time after SHA-256 verification against `lib/taxonomy-pin.mjs`; `APP_CSP` (with Firebase Auth/Firestore/Storage/Gemini `connect-src` origins), `FIGURE_CSP` (`sandbox allow-scripts`), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`. | `tests/firebase-backend.test.mjs`, live header verification on `harrington-learning-au.web.app` |
+| **FB-2** | **Firebase Authentication & Invite-Only Beta Gate** (`src/js/firebase-backend.js`, `firestore.rules`, `storage.rules`) | Google OAuth 2.0 & Email/Password via Identity Toolkit (`identitytoolkit.googleapis.com`, `securetoken.googleapis.com`); short-lived 1-hour JWT `idToken` + individually revocable per-device `refreshToken` (superseding `G8` / `HAR-53`). **Zero plaintext email** appears on the sign-in modal, client JS bundle, or git repository; access is gated client-side and server-side by the lowercase email's SHA-256 hex digest (`3630ac935b7662b92f7637f6ca90495fd5fe6d1fb563ae61e4a143d7c4b43edf`) plus `email_verified == true`. Unverified email/password accounts fail closed at Firestore and Cloud Storage. | `tests/firebase-backend.test.mjs` (asserts 403 on uninvited accounts and zero `@gmail.com` leaks across rules/code) |
+| **FB-3** | **Cloud Firestore (`australia-southeast2` Melbourne)** (`firestore.rules`) | Default-deny catch-all (`match /{document=**} { allow read, write: if false; }`); every collection under `/families/default/**` enforces `isFamilyMember()` via Firebase-signed JWT claims; `/families/default` validates schema types, `students.size() <= 20`, `notifications.size() <= 200`, `data.keys().size() <= 40` (G11 parity), monotonic `version == resource.data.version + 1` on `update`, and forbids `delete`. `firebaseSaveState()` enforces `validateDocument()` and Firestore `currentDocument.updateTime` preconditions (`412` on conflict). | Red-team audit (`firebase-security-rules-auditor`), `firebase deploy --only firestore:rules --dry-run` |
+| **FB-4** | **Cloud Storage for Firebase** (`storage.rules`) | Default-deny catch-all; `/families/default/audio/{audioId}` separates `allow read, delete` from `allow create, update`, enforces `isFamilyMember()`, `audioId` length `1..500`, `request.resource.size <= 100 MiB`, and the 10-type `audio/*` MIME allowlist (`HAR-47`). *(Note: remote Cloud Storage bucket provisioning requires Firebase Blaze; Hosting, Auth, and Firestore run on Spark.)* | Red-team audit, `tests/firebase-backend.test.mjs` |
+| **FB-5** | **Browser to Gemini AI API** (`src/js/firebase-backend.js`) | `firebaseChat()` enforces the same client-side redaction layer as `server.mjs`: replaces all stored learner names via `redactNames()` and strips verbatim stored parent notes (`>= 20` chars) unless `includeNotes === true` on `analysis` or `review`; refuses plain `http://` AI base URLs on public hosts (`HAR-59`). | `tests/firebase-backend.test.mjs` |
+
+### 9.2 Additional Residual Risks for Firebase Mode (for Owner Sign-Off)
+
+| # | Risk | Why it stays | Mitigation in place | Accepted by / date |
+| --- | --- | --- | --- | --- |
+| **R8** | **Firebase ID/refresh tokens live in `localStorage` and the Gemini API key is readable by the authenticated browser session** | Zero-backend static Firebase architecture (no Cloud Functions relay) keeps hosting at A\$0/mo and avoids server-side secret infrastructure. Any XSS in the app origin would therefore have access to the signed-in session token and AI key. | Strict `APP_CSP` (`script-src 'self'`), 100% `esc()` isolation scanner (`tests/isolation.test.mjs`), `FIGURE_CSP` sandboxing, and short-lived 1-hour JWTs + Google Account session revocation. | |
+| **R9** | **A signed-in browser's email hash is present in client-side JS and public rules** | Client-side allowlist rejection happens before Firestore calls, and rules live in the public repo. A SHA-256 hash without salt can in theory be tested offline against a known candidate email address (though it prevents casual scraping and never displays the email on screen). | Server-side enforcement still requires a valid Google/Firebase-signed OAuth/ID token for that exact verified email (`request.auth.token.email_verified == true`), so knowing the email address grants zero access without controlling the Google account. | |

@@ -248,6 +248,8 @@ model and not repeated here.
 
 ### G8: one static 400-day cookie for every device
 
+- **Status:** superseded / closed (`HAR-53` canceled by owner decision, 28 Nov 2026). Remote family access moved to **Firebase Hosting + Firebase Authentication** (`HAR-69`, `https://harrington-learning-au.web.app`), which issues short-lived 1-hour JWT ID tokens and individually revocable per-device refresh tokens gated to the owner's SHA-256 email digest in `firestore.rules`, `storage.rules`, and `src/js/firebase-backend.js`. Local `node server.mjs` is retained only for local development and E2E testing on loopback. The lines below describe `fc59f0b`.
+
 - **What happens:** the cookie is the same on every device. A lost device can
   be signed out only by changing the token for everyone.
 - **Reproduce:**
