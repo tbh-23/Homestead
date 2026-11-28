@@ -231,6 +231,19 @@ test('redactNames treats names that are common words as whole words only', () =>
   assert.equal(redactNames('Dr. O(Neil)', ['O(Neil)']), 'Dr. the child', 'regex characters in a name are literal');
 });
 
+test('redactNames redacts nicknames in brackets or quotes, comma-joined names and control-separated words (HAR-41)', () => {
+  assert.equal(redactNames('Xander counted to 20', ['Alexander (Xander) Quill']), 'the child counted to 20');
+  assert.equal(redactNames('Alexander (Xander) Quill counted to 20', ['Alexander (Xander) Quill']), 'the child counted to 20');
+  assert.equal(redactNames('Lizzy did well', ['Elizabeth "Lizzy" Fenn']), 'the child did well');
+  assert.equal(redactNames('Lizzy did well', ["Elizabeth 'Lizzy' Fenn"]), 'the child did well');
+  assert.equal(redactNames('Ivy and Rose read together', ['Ivy, Rose']), 'the child and the child read together');
+  assert.equal(redactNames('Ada counted and Quill read', ['Ada\u0007Quill']), 'the child counted and the child read');
+  assert.equal(redactNames('Ada\u0007Quill waved', ['Ada\u0007Quill']), 'the child waved');
+  assert.equal(redactNames('Ada and Quill waved', ['Ada\x00Quill']), 'the child and the child waved');
+  assert.equal(redactNames('Ada Quill waved', ['Ada\x00Quill']), 'the child waved');
+  assert.equal(redactNames('Al knows al', ['Alexander (Al) Quill']), 'the child knows al');
+});
+
 // The independent review's stub transcript, row by row: spelling variants of a
 // profile name must not leak.
 const VARIANT_LEARNERS = ['Mary-Jane Smith', "Mia O'Neil", 'Zoë Park', 'José Ruiz'];
