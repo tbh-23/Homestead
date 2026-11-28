@@ -2,14 +2,14 @@
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, stripUnknownPictures, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, stripOrphanLearnerKeys, stripUnknownPictures, unknownTopLevelFields, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData, isCurrentTopic } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { LIBRARY_MAX, normalizeReading } from './phonics/reading.js';
-import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
+import { PIN_PATTERN, clearPinSettings, hasPin, migratePinSettings, pinSettings, pinThrottle, verifyPin } from './pin.js';
 import { CURRICULUM_ID, learnerYear, normalizeYear } from './curriculum.js';
 
 export { MIN_BIRTH_YEAR, NAME_MAX };
@@ -197,7 +197,8 @@ function applyDocument(data) {
   // the next save carries the cleaned document.
   // Loaded from the server: its first save in a newer format keeps the stored
   // file, so the migration's notice can name that copy (schema.js).
-  const { doc } = dropBrokenEntries(migrateDocument(raw, { context: { keepsCopy: true } }));
+  const { doc: brokenCleaned } = dropBrokenEntries(migrateDocument(raw, { context: { keepsCopy: true } }));
+  const { doc } = readOnly ? { doc: brokenCleaned } : stripOrphanLearnerKeys(brokenCleaned);
   unknownFields = Object.fromEntries(Object.entries(doc)
     .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
   const fields = documentFields(doc);
@@ -283,6 +284,28 @@ function pruneEmpty(value) {
 //   { kind: 'offers', studentId, day, entry }      a day's daily offers chosen
 //   { kind: 'other', key }                         anything else (not re-applied)
 // Empty containers are ignored. Pure, so it can be tested without a server.
+const PLAN_PART_LABELS = {
+  moves: 'moved calendar topics',
+  done: 'completed calendar days',
+  extras: 'extra calendar items',
+  pace: 'catch-up pace',
+};
+const OTHER_KEY_LABELS = {
+  students: 'learner details',
+  activeStudentId: 'the active learner',
+  tests: 'test results',
+  challenges: 'challenge quiz results',
+  adaptations: 'difficulty settings',
+  suggestions: 'adaptive suggestions',
+  recall: 'recall reviews',
+  practice: 'spaced practice',
+  game: 'XP and badges',
+  interests: 'learner interests',
+  requests: 'topic finder requests',
+  levelset: 'level-set workbook',
+  reading: 'reading sounds and books',
+};
+
 export function diffDocuments(base, local) {
   const b = objectOr(base, {});
   const l = objectOr(local, {});
@@ -299,7 +322,9 @@ export function diffDocuments(base, local) {
         for (const [topicId, entry] of Object.entries(now)) {
           if (!same(before[topicId], entry)) changes.push({ kind: 'status', studentId, topicId, entry });
         }
-        if (Object.keys(before).some(id => !(id in now))) changes.push({ kind: 'other', key });
+        for (const topicId of Object.keys(before)) {
+          if (!(topicId in now)) changes.push({ kind: 'other', key, topicId, action: 'remove' });
+        }
       }
     } else if (key === 'records') {
       for (const studentId of new Set([...Object.keys(objectOr(b.records, {})), ...Object.keys(objectOr(l.records, {}))])) {
@@ -308,9 +333,11 @@ export function diffDocuments(base, local) {
         for (const record of objectOr(l.records, {})[studentId] || []) {
           now.add(record.id);
           if (!before.has(record.id)) changes.push({ kind: 'record', studentId, record });
-          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key });
+          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key, record, action: 'edit' });
         }
-        if ([...before.keys()].some(id => !now.has(id))) changes.push({ kind: 'other', key });
+        for (const [id, old] of before) {
+          if (!now.has(id)) changes.push({ kind: 'other', key, record: old, action: 'delete' });
+        }
       }
     } else if (key === 'activity') {
       for (const [studentId, days] of Object.entries(objectOr(l.activity, {}))) {
@@ -325,11 +352,30 @@ export function diffDocuments(base, local) {
         for (const [day, entry] of Object.entries(objectOr(days, {}))) {
           if (same(before[day], entry)) continue;
           const offersOnly = !before[day] && Object.keys(objectOr(entry?.picks, {})).length === 0;
-          changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key });
+          changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key, label: 'today’s picks' });
         }
       }
+    } else if (key === 'plan') {
+      let pushed = false;
+      for (const studentId of new Set([...Object.keys(objectOr(b.plan, {})), ...Object.keys(objectOr(l.plan, {}))])) {
+        const before = objectOr(objectOr(b.plan, {})[studentId], {});
+        const now = objectOr(objectOr(l.plan, {})[studentId], {});
+        for (const [part, label] of Object.entries(PLAN_PART_LABELS)) {
+          if (!same(before[part], now[part])) { changes.push({ kind: 'other', key, label }); pushed = true; }
+        }
+      }
+      if (!pushed) changes.push({ kind: 'other', key, label: 'calendar plan' });
+    } else if (key === 'settings') {
+      const before = objectOr(b.settings, {});
+      const now = objectOr(l.settings, {});
+      let pushed = false;
+      if (!same(before.calendar, now.calendar)) { changes.push({ kind: 'other', key, label: 'calendar settings' }); pushed = true; }
+      if (!same(before.parentPinHash, now.parentPinHash) || !same(before.parentPinSalt, now.parentPinSalt)) {
+        changes.push({ kind: 'other', key, label: 'grown-up PIN' }); pushed = true;
+      }
+      if (!pushed) changes.push({ kind: 'other', key, label: 'settings' });
     } else {
-      changes.push({ kind: 'other', key });
+      changes.push({ kind: 'other', key, ...(OTHER_KEY_LABELS[key] ? { label: OTHER_KEY_LABELS[key] } : {}) });
     }
   }
   return changes;
@@ -361,6 +407,11 @@ function reapplyBookkeeping(c) {
 // One line naming what a conflict discarded, for the toast: up to three
 // items, then "and N more". `nameOf(topicId)` gives a topic's name. Returns
 // '' when nothing a parent did was lost.
+function recordLabel(record) {
+  const what = record?.type === 'note' ? 'the note' : 'the record';
+  return record?.title ? `${what} “${record.title}”` : what;
+}
+
 export function describeDiscarded(changes, nameOf = id => id) {
   const parts = [];
   for (const c of changes || []) {
@@ -369,10 +420,11 @@ export function describeDiscarded(changes, nameOf = id => id) {
       const status = c.entry?.status || 'none';
       parts.push(`${nameOf(c.topicId) || 'a topic'} marked ${status === 'none' ? 'not started' : status}`);
     } else if (c.kind === 'record') {
-      const what = c.record?.type === 'note' ? 'the note' : 'the record';
-      parts.push(c.record?.title ? `${what} “${c.record.title}”` : what);
+      parts.push(recordLabel(c.record));
     } else if (c.kind === 'other') {
-      parts.push('other changes');
+      if (c.key === 'progress' && c.topicId) parts.push(`${nameOf(c.topicId) || 'a topic'} progress removed`);
+      else if (c.key === 'records' && c.record) parts.push(`${c.action === 'delete' ? 'removing' : 'edits to'} ${recordLabel(c.record)}`);
+      else parts.push(c.label || OTHER_KEY_LABELS[c.key] || 'other changes');
     }
   }
   const unique = [...new Set(parts)];
@@ -770,6 +822,7 @@ export function inspectImport(doc) {
   const { doc: stripped, dropped: picturesDropped } = stripUnknownPictures(doc);
   const problem = validateDocument(stripped);
   if (problem) return fail(problem);
+  const unknownFields = unknownTopLevelFields(stripped);
   const learners = stripped.students.map(s => ({
     name: s.name,
     topics: countOf(stripped.progress?.[s.id]),
@@ -778,7 +831,7 @@ export function inspectImport(doc) {
   }));
   // Learner colors that import will move to the nearest palette color.
   const colorsAdjusted = stripped.students.filter(s => paletteColor(s.color) !== s.color).length;
-  return { ok: true, learners, colorsAdjusted, picturesDropped };
+  return { ok: true, learners, colorsAdjusted, picturesDropped, unknownFields };
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
@@ -788,7 +841,8 @@ export function importDocument(doc) {
   if (readOnly) return Promise.reject(new Error(readOnlyMessage()));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { doc: stripped } = stripUnknownPictures(migrateDocument(withValidActive(doc)));
+  const { doc: strippedPictures } = stripUnknownPictures(migrateDocument(withValidActive(doc)));
+  const { doc: stripped } = stripOrphanLearnerKeys(strippedPictures);
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = stripped;
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
   // The topic finder's log: known learners only, newest first, capped.
@@ -1675,10 +1729,22 @@ export function setChildViewOpen(open) { childViewOpen = !!open; }
 // (pin.js).
 export function hasParentPin() { return hasPin(state.settings); }
 export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
+export function parentPinLockout() { return pinThrottle.status(); }
+export function attemptParentPin(pin) { return pinThrottle.verify(pin, state.settings); }
 export function setParentPin(pin) {
   if (!PIN_PATTERN.test(String(pin))) return false;
   state.settings = pinSettings(state.settings, pin);
+  pinThrottle.reset();
   persist();
+  emit();
+  return true;
+}
+export function clearParentPin() {
+  if (!hasPin(state.settings)) return false;
+  state.settings = clearPinSettings(state.settings);
+  pinThrottle.reset();
+  persist();
+  emit();
   return true;
 }
 

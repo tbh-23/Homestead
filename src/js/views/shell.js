@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData } from '../data.js';
-import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations } from '../ui.js';
+import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations, clearConfirmations } from '../ui.js';
 import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
@@ -77,12 +77,12 @@ export function renderShell({ route, navigate, content }) {
 
   // Top bar (mobile)
   const top = el(`
-    <header class="lg:hidden sticky top-0 z-40 bg-paper-deep px-4 py-2.5 flex items-center justify-between">
-      <div class="flex items-center gap-2">
+    <header class="lg:hidden sticky top-0 z-40 bg-paper-deep px-4 py-2.5 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         ${meadowLogo(30)}
-        <span class="font-display text-lg font-600">Harrington</span>
+        <span class="font-display text-lg font-600 truncate">Harrington</span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <button id="mob-guide" class="w-9 h-9 rounded-lg border border-paper-line bg-paper-card hover:border-brand/40 transition-colors flex items-center justify-center" title="Guide" aria-label="Open the guide"><i data-lucide="book-open" class="w-4.5 h-4.5 text-ink-soft"></i></button>
         <span id="mob-bell"></span>
         <div id="mob-student"></div>
@@ -104,7 +104,7 @@ export function renderShell({ route, navigate, content }) {
 
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
-  const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
+  const scroll = el(`<div class="flex-1 min-w-0 pb-24 lg:pb-0"></div>`);
   if (store.isReadOnly()) {
     // One banner: drop one shown above #app before the shell existed.
     document.querySelectorAll('.read-only-banner').forEach(b => b.remove());
@@ -160,6 +160,8 @@ function openStudentMenu(navigate) {
           <i data-lucide="download" class="w-4 h-4"></i>Export</button>
         <button id="m-import" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
           <i data-lucide="upload" class="w-4 h-4"></i>Import</button>
+        <button id="m-pin" class="col-span-2 flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Set or change child-view PIN">
+          <i data-lucide="lock" class="w-4 h-4"></i>Child-view PIN</button>
       </div>
     </div>
   </div>`);
@@ -205,6 +207,7 @@ function openStudentMenu(navigate) {
   body.querySelector('#m-export').onclick = () => { m.close(); openExportDialog(); };
   const phoneImport = body.querySelector('#m-import');
   phoneImport.onclick = () => { m.close(); pickImportFile(); };
+  body.querySelector('#m-pin').onclick = () => { m.close(); openParentPinDialog(); };
   disableImportIfReadOnly(phoneImport);
   const m = openModal(body);
 }
@@ -368,14 +371,75 @@ function accountBox() {
         <i data-lucide="download" class="w-3.5 h-3.5"></i>Export</button>
       <button id="import" class="flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
         <i data-lucide="upload" class="w-3.5 h-3.5"></i>Import</button>
+      <button id="pin-btn" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Set or change child-view PIN">
+        <i data-lucide="lock" class="w-3.5 h-3.5"></i>Child-view PIN</button>
       <a href="#settings" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>AI provider</a>
     </div>
   </div>`);
   box.querySelector('#export').onclick = openExportDialog;
   const importButton = box.querySelector('#import');
   importButton.onclick = pickImportFile;
+  box.querySelector('#pin-btn').onclick = openParentPinDialog;
   disableImportIfReadOnly(importButton);
   return box;
+}
+
+// Parent-side management for the child-view PIN (HAR-57 / G12): only the
+// parent view can set, change or clear the PIN.
+function openParentPinDialog() {
+  const hasPin = store.hasParentPin();
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">${hasPin ? 'Child-view PIN' : 'Set child-view PIN'}</h3>
+    <p class="text-sm text-ink-soft mb-4">${hasPin
+      ? 'A 4-digit PIN is set. Enter a new PIN below to change it, or remove it so Grown-ups returns straight to the parent view.'
+      : 'Choose a 4-digit PIN to keep the child view from closing with one tap. Without one, Grown-ups returns straight to the parent view.'}</p>
+    <form id="pin-form" class="space-y-3" autocomplete="off">
+      <div>
+        <label for="pp-new" class="text-sm font-medium block mb-1">${hasPin ? 'New 4-digit PIN' : '4-digit PIN'}</label>
+        <input id="pp-new" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" required class="${inputCls}" />
+      </div>
+      <div>
+        <label for="pp-confirm" class="text-sm font-medium block mb-1">Confirm 4-digit PIN</label>
+        <input id="pp-confirm" name="confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" required class="${inputCls}" />
+      </div>
+      <p id="pp-err" class="text-sm text-[#a4473a] min-h-[1.25rem]" role="alert"></p>
+      <div class="flex flex-wrap gap-2 justify-end pt-1">
+        ${hasPin ? '<button type="button" id="pp-remove" class="px-4 h-11 rounded-full bg-paper text-sm font-medium text-[#a4473a] mr-auto">Remove PIN</button>' : ''}
+        <button type="button" id="pp-cancel" class="px-4 h-11 rounded-full bg-paper text-sm font-medium">Cancel</button>
+        <button type="submit" class="px-5 h-11 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Save PIN</button>
+      </div>
+    </form>
+  </div>`);
+  const err = body.querySelector('#pp-err');
+  const newInput = body.querySelector('#pp-new');
+  const confirmInput = body.querySelector('#pp-confirm');
+  body.querySelector('#pp-cancel').onclick = () => m.close();
+  body.querySelector('#pp-remove')?.addEventListener('click', () => {
+    store.clearParentPin();
+    m.close();
+    toast('Child-view PIN removed', 'success');
+  });
+  body.querySelector('#pin-form').onsubmit = (e) => {
+    e.preventDefault();
+    const pin = newInput.value.trim();
+    const confirm = confirmInput.value.trim();
+    if (!/^\d{4}$/.test(pin)) {
+      err.textContent = 'Please enter 4 digits.';
+      newInput.focus();
+      return;
+    }
+    if (pin !== confirm) {
+      err.textContent = 'Those PINs did not match. Try again.';
+      confirmInput.value = '';
+      confirmInput.focus();
+      return;
+    }
+    store.setParentPin(pin);
+    m.close();
+    toast('Child-view PIN saved', 'success');
+  };
+  const m = openModal(body);
+  newInput.focus();
 }
 
 // ---- Family data: export, import, and save problems ----
@@ -447,18 +511,19 @@ function pickImportFile() {
     }
     const check = store.inspectImport(doc);
     if (!check.ok) { toast(check.error, 'error'); return; }
-    openImportPreview(doc, check.learners, check.colorsAdjusted, check.picturesDropped);
+    openImportPreview(doc, check.learners, check.colorsAdjusted, check.picturesDropped, check.unknownFields);
   };
   input.click();
 }
 
-function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 0) {
+function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 0, unknownFields = []) {
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
     ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner colour'))} adjusted to the nearest palette colour.</p>` : ''}
     ${picturesDropped ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(picturesDropped, 'unknown picture item'))} from a newer version will be left out of saved books.</p>` : ''}
+    ${unknownFields.length ? `<p class="text-xs text-ink-faint -mt-3 mb-5">Carries ${esc(countLabel(unknownFields.length, 'unrecognised field'))} (kept as-is): ${unknownFields.map(f => `<code class="px-1 py-0.5 rounded bg-paper">${esc(f)}</code>`).join(', ')}.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
       <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>
@@ -468,7 +533,7 @@ function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 
   if (!learners.length) list.appendChild(el(`<p class="text-sm text-ink-faint">The file has no learners.</p>`));
   learners.forEach(l => {
     list.appendChild(el(`<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-2xl bg-paper">
-      <span class="text-sm font-600 truncate">${esc(l.name)}</span>
+      <span class="text-sm font-600 truncate min-w-0">${esc(l.name)}</span>
       <span class="text-xs text-ink-faint shrink-0">${countLabel(l.topics, 'topic')} · ${countLabel(l.records, 'record')} · ${countLabel(l.tests, 'test')}</span>
     </div>`));
   });
@@ -513,6 +578,7 @@ function reportBlockedWrite(automatic = false) {
   // A write the app made while rendering is not the parent's: no toast.
   if (automatic) return;
   holdConfirmations();
+  clearConfirmations();
   // One toast per burst of blocked writes (a click can persist twice).
   if (Date.now() - lastNotSaved < 1500) return;
   lastNotSaved = Date.now();
@@ -556,8 +622,8 @@ function showConflict({ discarded = [], retry = null } = {}) {
   conflictToast?.remove();
   const lost = store.describeDiscarded(discarded, topicName);
   const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
-  const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
-    <span>${esc(msg)}</span>
+  const node = el(`<div role="alert" class="max-w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
+    <span class="min-w-0 [overflow-wrap:anywhere]">${esc(msg)}</span>
     ${retry ? `<button class="${TOAST_BUTTON}">Try again</button>` : ''}
   </div>`);
   conflictToast = node;
@@ -588,8 +654,8 @@ function showRetry(reason = null) {
   if (!root) return;
   retryToast?.remove();
   retryReason = reason;
-  retryToast = el(`<div role="alert" class="px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span class="py-1.5">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
+  retryToast = el(`<div role="alert" class="max-w-full px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
+    <span class="py-1.5 min-w-0 [overflow-wrap:anywhere]">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
     ${reason ? `<button class="dismiss ${TOAST_BUTTON}">Dismiss</button>` : `<button class="retry ${TOAST_BUTTON}">Retry</button>`}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
@@ -605,13 +671,14 @@ store.onSaveStatus((event) => {
   const { type, error, automatic } = event;
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
-  else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
-  else if (type === 'too-large') showTooLarge();
-  else if (type === 'failed') showRetry();
+  else if (type === 'conflict') { clearSaveProblems(); clearConfirmations(); showConflict(event); }
+  else if (type === 'too-large') { clearConfirmations(); showTooLarge(); }
+  else if (type === 'failed') { clearConfirmations(); showRetry(); }
   else if (type === 'rejected') {
     // The save the action triggered was refused: its confirmation must not
-    // say otherwise (it is shown later in the same task).
+    // say otherwise (it is shown later in the same task, or cleared if async).
     holdConfirmations();
+    clearConfirmations();
     showRetry(error?.message || null);
   }
   else if (type === 'read-only') reportBlockedWrite(automatic);

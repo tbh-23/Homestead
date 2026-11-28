@@ -248,6 +248,8 @@ model and not repeated here.
 
 ### G8: one static 400-day cookie for every device
 
+- **Status:** superseded / closed (`HAR-53` canceled by owner decision, 28 Nov 2026). Remote family access moved to **Firebase Hosting + Firebase Authentication** (`HAR-69`, `https://harrington-learning-au.web.app`), which issues short-lived 1-hour JWT ID tokens and individually revocable per-device refresh tokens gated to the owner's SHA-256 email digest in `firestore.rules`, `storage.rules`, and `src/js/firebase-backend.js`. Local `node server.mjs` is retained only for local development and E2E testing on loopback. The lines below describe `fc59f0b`.
+
 - **What happens:** the cookie is the same on every device. A lost device can
   be signed out only by changing the token for everyone.
 - **Reproduce:**
@@ -298,6 +300,19 @@ model and not repeated here.
 
 ### G11: the validator keeps unknown top-level fields and non-learner keys
 
+- **Status:** fixed (HAR-56). `validateDocument()` in `src/js/document.js` now
+  caps unrecognised top-level fields at `MAX_UNKNOWN_FIELDS` (20) and
+  `MAX_UNKNOWN_BYTES` (64 KB combined serialised JSON), and refuses prototype
+  property names (`__proto__`, `constructor`, `prototype`), while
+  `inspectImport()` and `openImportPreview()` list any unrecognised top-level
+  field names in the import preview. `stripOrphanLearnerKeys()` drops any
+  per-learner map entry across `LEARNER_KEYS` whose key is not one of the
+  document's `students` IDs (including `__proto__`, `constructor`, `prototype`,
+  and orphan IDs) on load, import (`src/js/store.js`), and save
+  (`server.mjs`, `src/js/firebase-backend.js`)
+  (`tests/import-validation.test.mjs`, `tests/server.test.mjs`,
+  `tests/firebase-backend.test.mjs`). The lines below describe `fc59f0b`.
+
 - **What happens:** a crafted import can carry up to the 5 MB body limit of
   hidden data, which persists and is re-exported.
 - **Reproduce:** save, or import, a document with:
@@ -311,6 +326,16 @@ model and not repeated here.
   2. Drop per-learner keys that are not a learner id.
 
 ### G12: the first person to press Grown-ups sets the family PIN
+
+- **Status:** fixed (HAR-57). `src/js/views/shell.js` now provides
+  parent-side **Child-view PIN** management (set, change and remove) in the
+  desktop sidebar and mobile learner menu; `src/js/views/kidmode.js` no longer
+  prompts to create an initial PIN on the child screen, returning straight to
+  the parent view when no PIN is set. `createPinThrottle()` in `src/js/pin.js`
+  enforces an exponential cooldown in `sessionStorage` (with in-memory
+  fallback) after 5 consecutive wrong guesses (15 s, doubling up to 5 minutes)
+  before allowing further attempts (`tests/pin.test.mjs`,
+  `tests/e2e/child-view.spec.mjs`). The lines below describe `fc59f0b`.
 
 - **What happens:** a child can set the PIN before a parent does, and there
   is no limit on wrong attempts.

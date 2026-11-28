@@ -23,7 +23,7 @@ export function renderLearner(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-5">
     <p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1">Parent view</p>
-    <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(student.name)}</h1>
+    <h1 class="font-display text-2xl sm:text-3xl font-600 [overflow-wrap:anywhere]">${esc(student.name)}</h1>
     <p class="text-ink-soft text-sm mt-1">Age ${store.studentAge(student)}</p>
   </div>`));
 
@@ -33,11 +33,11 @@ export function renderLearner(params, { navigate }) {
         <div class="min-w-0">
           <h2 id="reading-h" class="font-display text-xl font-600">Reading</h2>
           <p id="reading-stage" class="text-sm text-ink mt-1 font-medium">${esc(readingSummary(reading))}</p>
-          <p class="text-xs text-ink-faint mt-1 leading-relaxed">Tick the sounds and tricky words ${esc(student.name)} can read. Books and new stories use only what is ticked, so this is all there is to change when they learn more.</p>
+          <p class="text-xs text-ink-faint mt-1 leading-relaxed [overflow-wrap:anywhere]">Tick the sounds and tricky words ${esc(student.name)} can read. Books and new stories use only what is ticked, so this is all there is to change when they learn more.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button id="find-level" class="${BTN} bg-paper text-ink border border-paper-line"><i data-lucide="search-check" class="w-4 h-4"></i>Find the level</button>
-          <button id="to-books" class="${BTN} bg-brand text-white"><i data-lucide="book-open" class="w-4 h-4"></i>Books for ${esc(student.name)}</button>
+        <div class="flex flex-wrap gap-2 max-w-full">
+          <button id="find-level" class="${BTN} bg-paper text-ink border border-paper-line"><i data-lucide="search-check" class="w-4 h-4 shrink-0"></i>Find the level</button>
+          <button id="to-books" class="${BTN} h-auto min-h-11 py-2 max-w-full text-left bg-brand text-white"><i data-lucide="book-open" class="w-4 h-4 shrink-0"></i><span class="min-w-0 [overflow-wrap:anywhere]">Books for ${esc(student.name)}</span></button>
         </div>
       </div>
     </div>
@@ -162,7 +162,7 @@ export function renderLearner(params, { navigate }) {
   const p = reading.prefs;
   prefs.appendChild(el(`<div class="space-y-3 text-sm">
     <label class="flex items-start gap-2 cursor-pointer"><input type="checkbox" id="name-on-cover" class="w-4 h-4 mt-0.5 accent-[#3f6b3b]" ${p.nameOnCover ? 'checked' : ''}>
-      <span>Print ${esc(student.name)}'s name on the cover<span class="block text-xs text-ink-faint">Only on the paper; the name is never sent anywhere.</span></span></label>
+      <span class="min-w-0 [overflow-wrap:anywhere]">Print ${esc(student.name)}'s name on the cover<span class="block text-xs text-ink-faint">Only on the paper; the name is never sent anywhere.</span></span></label>
     <fieldset><legend class="text-xs text-ink-faint mb-1">Print layout</legend>
       <div class="flex flex-wrap gap-4">
         <label class="inline-flex items-center gap-2 h-11 cursor-pointer"><input type="radio" name="layout" value="booklet" class="accent-[#3f6b3b]" ${p.layout === 'booklet' ? 'checked' : ''}>Booklet (A4, fold and staple)</label>
@@ -198,7 +198,7 @@ function openFindLevel(student) {
     body.innerHTML = '';
     body.appendChild(el(`<div>
       <p class="text-xs text-ink-faint mb-1">Find the level · ${esc(stage.label)} of ${seq.stages.length}</p>
-      <h3 class="font-display text-xl font-600 mb-1">${stage.clusters ? 'Two sounds together' : 'Which sounds does ' + esc(student.name) + ' know?'}</h3>
+      <h3 class="font-display text-xl font-600 mb-1 [overflow-wrap:anywhere]">${stage.clusters ? 'Two sounds together' : 'Which sounds does ' + esc(student.name) + ' know?'}</h3>
       <p class="text-sm text-ink-soft mb-4">${stage.clusters
         ? 'Ask them to read stop, mist and jumps. Tick if they blend all of the sounds.'
         : 'Point to each sound and ask what it says. Tap the ones they say straight away.'}</p>

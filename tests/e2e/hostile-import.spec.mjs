@@ -1,8 +1,8 @@
 // A hostile family file (PR #32 review, item 1). Each payload is refused at
 // import with its reason, and the views escape it even when a document
 // carrying all of them reaches the browser without those checks.
-import { test, expect, modal, expectToast, nav } from './fixtures.mjs';
-import { LEARNERS, TOPICS } from './support/family.mjs';
+import { test, expect, modal, expectToast, nav, closeModal } from './fixtures.mjs';
+import { LEARNERS, TOPICS, familyState } from './support/family.mjs';
 import { HOSTILE_CHANGES, PAYLOAD, everyRenderPayload, hostileFamily } from './support/hostile-family.mjs';
 
 const importButton = (page) => page.getByRole('button', { name: 'Import', exact: true });
@@ -96,4 +96,54 @@ test('a topic title with markup shows as text in both topic searches', async ({ 
 
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
   expect(errors).toEqual([]);
+});
+
+test('import refuses >64 KB unrecognised fields, previews smaller ones and drops orphan learner keys (HAR-56)', async ({ page, api, gotoApp }) => {
+  await gotoApp({ seed: {} });
+  const base = familyState({ learners: ['rowan'], active: 'rowan' });
+  await chooseImportFile(page, { ...base, smuggled: 'x'.repeat(70 * 1024) });
+  await expectToast(page, "The file's unrecognised fields are larger than 64 KB.");
+  await expect(page.locator('#modal-root > div')).toHaveCount(0);
+
+  const rawWithOrphans = JSON.stringify({
+    ...base,
+    futureFlag: { v: 1 },
+    records: {
+      __proto__: [{ id: 'r_p', type: 'note', note: 'proto' }],
+      not_a_learner: [{ id: 'r_o', type: 'note', note: 'orphan' }],
+      [LEARNERS.rowan.id]: [{ id: 'r_real', type: 'note', note: 'kept' }],
+    },
+  });
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), importButton(page).click()]);
+  await chooser.setFiles({ name: 'family.json', mimeType: 'application/json', buffer: Buffer.from(rawWithOrphans) });
+  const preview = modal(page);
+  await expect(preview.getByText(/Carries 1 unrecognised field.*futureFlag/)).toBeVisible();
+  await preview.getByRole('button', { name: 'Replace family data' }).click();
+  await expectToast(page, 'Family data imported');
+
+  const stored = await api.waitForState((s) => s.futureFlag?.v === 1);
+  expect(Object.keys(stored.records)).toEqual([LEARNERS.rowan.id]);
+});
+
+test('nicknames in brackets and control-character names are redacted before AI requests (HAR-41)', async ({ page, gotoApp, mockAi }) => {
+  await gotoApp({ seed: {} });
+  const doc = familyState({ learners: ['rowan'], active: 'rowan' });
+  doc.students[0].name = 'Alexander (Xander) Quill';
+  doc.records[LEARNERS.rowan.id] = [
+    { id: 'r_nick', type: 'discussion', title: 'Counting chat', note: 'Xander counted to 20', createdAt: Date.now() - 1000 },
+  ];
+  await chooseImportFile(page, doc);
+  await modal(page).getByRole('button', { name: 'Replace family data' }).click();
+  await expectToast(page, 'Family data imported');
+  await mockAi.clear();
+
+  await nav(page, 'Records').click();
+  await page.getByRole('checkbox', { name: 'Include my notes in this request' }).check();
+  await page.getByRole('button', { name: 'Analyse & get advice' }).click();
+  await expect(modal(page).getByText('Discussion analysis')).toBeVisible();
+  await closeModal(page);
+
+  const [entry] = await mockAi.log();
+  expect(entry.prompt).toContain('the child counted to 20');
+  expect(entry.prompt).not.toMatch(/Xander|Alexander|Quill/i);
 });

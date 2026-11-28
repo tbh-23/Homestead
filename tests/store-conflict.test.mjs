@@ -249,3 +249,41 @@ test('a migration the reload makes is never listed as a lost change, then or lat
   const [second] = events.filter((e) => e.type === 'conflict');
   assert.deepEqual(second.discarded.map((c) => [c.kind, c.topicId]), [['status', 'f']]);
 });
+
+test('describeDiscarded names common mutations instead of falling back to "other changes" (HAR-42)', () => {
+  const base = {
+    students: [{ id: 's1', name: 'Rowan Sample' }],
+    progress: { s1: { t1: { status: 'learning' } } },
+    records: { s1: [{ id: 'r1', type: 'observation', title: 'Counted spoons' }, { id: 'r2', type: 'note', title: 'Old note' }] },
+    daily: { s1: { '2026-10-07': { offers: { literacy: ['a', 'b'] }, picks: {} } } },
+    plan: { s1: { moves: {}, done: {}, extras: {} } },
+    settings: { calendar: { homeDays: [1, 2, 3, 4, 5], breaks: [] } },
+  };
+  const cases = [
+    ['daily pick', { ...base, daily: { s1: { '2026-10-07': { offers: { literacy: ['a', 'b'] }, picks: { literacy: 'a' } } } } }, /today’s picks/],
+    ['plan moves', { ...base, plan: { s1: { moves: { t1: '2026-10-08' }, done: {}, extras: {} } } }, /moved calendar topics/],
+    ['plan done', { ...base, plan: { s1: { moves: {}, done: { '2026-10-07': 123 }, extras: {} } } }, /completed calendar days/],
+    ['plan extras', { ...base, plan: { s1: { moves: {}, done: {}, extras: { '2026-10-07': [{ id: 'x1' }] } } } }, /extra calendar items/],
+    ['plan pace', { ...base, plan: { s1: { moves: {}, done: {}, extras: {}, pace: 'mixed' } } }, /catch-up pace/],
+    ['interests', { ...base, interests: { s1: { chips: ['Space'], text: '' } } }, /learner interests/],
+    ['reading', { ...base, reading: { s1: { graphemes: ['s', 'a'] } } }, /reading sounds and books/],
+    ['tests', { ...base, tests: { s1: [{ id: 't_1', pct: 100 }] } }, /test results/],
+    ['challenges', { ...base, challenges: { s1: [{ id: 'c_1', correct: 8 }] } }, /challenge quiz results/],
+    ['recall', { ...base, recall: { s1: { 't1::0': { box: 1 } } } }, /recall reviews/],
+    ['practice', { ...base, practice: { s1: { p1: { box: 1 } } } }, /spaced practice/],
+    ['levelset', { ...base, levelset: { s1: { lane: 'numeracy' } } }, /level-set workbook/],
+    ['requests', { ...base, requests: { s1: [{ id: 'rq1', text: 'fractions' }] } }, /topic finder requests/],
+    ['adaptations', { ...base, adaptations: { s1: { 'Math|Number': { level: 'advanced' } } } }, /difficulty settings/],
+    ['suggestions', { ...base, suggestions: { s1: [{ id: 'g1', status: 'pending' }] } }, /adaptive suggestions/],
+    ['students', { ...base, students: [{ id: 's1', name: 'Wren Sample' }] }, /learner details/],
+    ['calendar settings', { ...base, settings: { calendar: { homeDays: [1, 2, 3, 4], breaks: [] } } }, /calendar settings/],
+    ['record edited', { ...base, records: { s1: [{ id: 'r1', type: 'observation', title: 'Counted spoons', note: 'Updated' }, base.records.s1[1]] } }, /edits to the record “Counted spoons”/],
+    ['record deleted', { ...base, records: { s1: [base.records.s1[0]] } }, /removing the note “Old note”/],
+    ['progress removed', { ...base, progress: { s1: {} } }, /One-to-one counting progress removed/],
+  ];
+  for (const [label, local, expected] of cases) {
+    const desc = store.describeDiscarded(store.diffDocuments(base, local), (id) => (id === 't1' ? 'One-to-one counting' : id));
+    assert.match(desc, expected, `${label}: got "${desc}"`);
+    assert.doesNotMatch(desc, /other changes/, `${label}: fell back to "other changes"`);
+  }
+});

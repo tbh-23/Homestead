@@ -83,6 +83,10 @@ test('the parent PIN is four digits and only its salted hash is persisted', asyn
   assert.equal(store.hasParentPin(), true);
   assert.equal(store.checkParentPin('0420'), true);
   assert.equal(store.checkParentPin('0421'), false);
+  assert.equal(store.clearParentPin(), true);
+  assert.equal(store.hasParentPin(), false);
+  assert.equal(store.clearParentPin(), false);
+  assert.equal(store.setParentPin('0420'), true);
   await store.flushSaves();
   const settings = saved.at(-1)?.settings;
   assert.match(settings?.parentPinHash, /^[0-9a-f]{64}$/);

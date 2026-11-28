@@ -32,7 +32,7 @@ service firebase.storage {
         && audioId.size() >= 1
         && audioId.size() <= 500;
 
-      allow write: if isFamilyMember()
+      allow create, update: if isFamilyMember()
         && familyId == 'default'
         && audioId.size() >= 1
         && audioId.size() <= 500

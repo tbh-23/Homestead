@@ -13,11 +13,12 @@ import { meadowScene, growthIcon, stageForArea, stageForStatus, GROWTH } from '.
 
 let overlay = null;
 let launcher = null; // element focused before the child view opened
+let activeCleanup = null;
 
 export function openKidMode() {
   const student = store.activeStudent();
   if (!student) { toast('Add a student first', 'error'); return; }
-  if (overlay) overlay.remove();
+  if (overlay) { activeCleanup?.(); activeCleanup = null; overlay.remove(); }
   else launcher = document.activeElement;
 
   overlay = el(`<div class="fixed inset-0 z-[95] bg-paper overflow-y-auto" role="dialog" aria-modal="true" aria-label="Child view" tabindex="-1"></div>`);
@@ -32,6 +33,8 @@ export function openKidMode() {
 }
 
 function close() {
+  activeCleanup?.();
+  activeCleanup = null;
   if (overlay) { overlay.remove(); overlay = null; }
   store.setChildViewOpen(false);
   setShellInert(false);
@@ -50,11 +53,16 @@ function setShellInert(on) {
   else app.removeAttribute('aria-hidden');
 }
 
-// "Grown-ups" asks for the parent PIN, or sets one the first time. Forgot it?
-// Reloading the page always returns to the grown-up view.
+// "Grown-ups" asks for the parent PIN when one is set (with a cooldown after
+// 5 wrong attempts), or returns straight to the parent view when none is set
+// so a child can never set the initial PIN (HAR-57 / G12). Reloading the page
+// always returns to the grown-up view.
 function askForPin(student, back) {
-  const existing = store.hasParentPin();
-  let first = null; // the first entry while setting a new PIN
+  if (!store.hasParentPin()) {
+    close();
+    toast('Returned to parent view. Set a Child-view PIN in the parent menu if you want a PIN.', 'default', { id: 'pin-reminder' });
+    return;
+  }
   overlay.innerHTML = '';
   const page = el(`<div class="min-h-full bg-paper flex flex-col">
     <div class="max-w-md w-full mx-auto px-4 pt-5">
@@ -62,48 +70,71 @@ function askForPin(student, back) {
     </div>
     <form class="max-w-md w-full mx-auto px-4 py-8 text-center" autocomplete="off">
       <span class="w-14 h-14 rounded-full bg-paper-card shadow-soft flex items-center justify-center mx-auto mb-4 text-brand"><i data-lucide="lock" class="w-6 h-6"></i></span>
-      <h1 id="pin-title" class="font-display text-3xl font-600"></h1>
-      <p id="pin-hint" class="text-sm text-ink-soft mt-1"></p>
+      <h1 id="pin-title" class="font-display text-3xl font-600">Grown-ups only</h1>
+      <p id="pin-hint" class="text-sm text-ink-soft mt-1">Enter the 4-digit PIN.</p>
       <label for="pin" class="sr-only">Grown-up PIN</label>
       <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"
-        class="mt-5 w-48 h-14 mx-auto block rounded-2xl border border-paper-line bg-paper-card text-center text-3xl tracking-[0.5em] font-700 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+        class="mt-5 w-48 h-14 mx-auto block rounded-2xl border border-paper-line bg-paper-card text-center text-3xl tracking-[0.5em] font-700 focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand disabled:opacity-50" />
       <p id="pin-msg" class="text-sm text-[#a4473a] mt-2 min-h-[1.25rem]" role="alert"></p>
-      <button type="submit" class="mt-2 w-48 h-12 rounded-full bg-brand hover:bg-brand-dark text-paper-card font-600">Continue</button>
-      ${existing ? '<p class="text-xs text-ink-faint mt-6">Forgot the PIN? Reload the page to return to the grown-up view.</p>' : ''}
+      <button id="pin-submit" type="submit" class="mt-2 w-48 h-12 rounded-full bg-brand hover:bg-brand-dark text-paper-card font-600 disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+      <p class="text-xs text-ink-faint mt-6">Forgot the PIN? Reload the page to return to the grown-up view.</p>
     </form>
   </div>`);
-  const title = page.querySelector('#pin-title');
-  const hint = page.querySelector('#pin-hint');
   const input = page.querySelector('#pin');
   const msg = page.querySelector('#pin-msg');
-  const show = (t, h) => { title.textContent = t; hint.textContent = h; input.value = ''; input.focus(); };
-  if (existing) show('Grown-ups only', 'Enter the 4-digit PIN.');
-  else show('Set a grown-up PIN', 'Choose 4 digits. You will need them to leave the child view.');
+  const submitBtn = page.querySelector('#pin-submit');
 
-  page.querySelector('#back').onclick = back;
+  let lockTimer = null;
+  const stopTimer = () => {
+    if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
+  };
+  activeCleanup = stopTimer;
+
+  const syncLockout = () => {
+    const status = store.parentPinLockout();
+    if (status.locked) {
+      const secs = Math.max(1, Math.ceil(status.remainingMs / 1000));
+      input.disabled = true;
+      submitBtn.disabled = true;
+      input.value = '';
+      msg.textContent = `Too many wrong tries. Try again in ${secs} s.`;
+      if (!lockTimer) lockTimer = setInterval(syncLockout, 250);
+    } else {
+      stopTimer();
+      if (input.disabled) {
+        input.disabled = false;
+        submitBtn.disabled = false;
+        msg.textContent = '';
+        input.focus();
+      }
+    }
+    return status.locked;
+  };
+
+  page.querySelector('#back').onclick = () => {
+    stopTimer();
+    activeCleanup = null;
+    back();
+  };
   page.querySelector('form').onsubmit = e => {
     e.preventDefault();
+    if (syncLockout()) return;
     const pin = input.value.trim();
     if (!/^\d{4}$/.test(pin)) { msg.textContent = 'Please enter 4 digits.'; input.value = ''; input.focus(); return; }
-    msg.textContent = '';
-    if (existing) {
-      if (store.checkParentPin(pin)) close();
-      else { msg.textContent = 'That is not the PIN.'; input.value = ''; input.focus(); }
-    } else if (first === null) {
-      first = pin;
-      show('Type it again', 'Enter the same 4 digits to confirm.');
-    } else if (pin === first) {
-      store.setParentPin(pin);
+    const result = store.attemptParentPin(pin);
+    if (result.ok) {
       close();
+    } else if (result.locked) {
+      syncLockout();
     } else {
-      first = null;
-      msg.textContent = 'Those did not match. Try again.';
-      show('Set a grown-up PIN', 'Choose 4 digits. You will need them to leave the child view.');
+      msg.textContent = 'That is not the PIN.';
+      input.value = '';
+      input.focus();
     }
   };
   overlay.appendChild(page);
   refreshIcons();
-  input.focus();
+  if (!syncLockout()) input.focus();
 }
 
 function render(student) {
@@ -126,7 +157,7 @@ function render(student) {
         <span class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-display font-600 shadow-[0_0_0_4px_#fffdf8]" style="background:${esc(student.color || '#3f6b3b')}">${esc(initials(student.name))}</span>
         <button id="exit" class="flex items-center gap-1.5 h-11 px-4 rounded-full bg-paper-card text-sm font-600 text-ink" aria-label="Back to the grown-up view"><i data-lucide="lock" class="w-4 h-4"></i>Grown-ups</button>
       </div>
-      <h1 class="font-display text-4xl font-600 mt-4">${greet}, ${name}!</h1>
+      <h1 class="font-display text-4xl font-600 mt-4 [overflow-wrap:anywhere]">${greet}, ${name}!</h1>
       <p class="text-ink-soft mt-1 flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4 text-butter-deep"></i>${new Date().toLocaleDateString(undefined, { weekday: 'long' })}</p>
     </div>
   </header>`);

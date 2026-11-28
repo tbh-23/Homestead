@@ -1,6 +1,7 @@
 // The child view overlay opened from the dashboard (with HAR-15: a parent PIN,
 // the child-safe topic card and score-free activities).
 import { test, expect, modal, closeModal, expectToast, childView, leaveChildView, TEST_PIN } from './fixtures.mjs';
+import { FIXED_NOW } from './support/env.mjs';
 import { LEARNERS, TOPICS } from './support/family.mjs';
 import { CHALLENGE_QUESTIONS } from './mock-ai-server.mjs';
 
@@ -47,49 +48,80 @@ test('opens score-free with picks, four big buttons, garden; the parent shell is
   expect(errors).toEqual([]);
 });
 
-test('Grown-ups: set a PIN the first time, then it is required', async ({ page, api, gotoApp, shot }) => {
+test('Grown-ups: cannot set initial PIN from child view; parent sets PIN and child view locks out after 5 wrong tries (HAR-57)', async ({ page, api, gotoApp, shot }) => {
   await gotoApp({ seed: {} });
   await openChildView(page);
   const view = childView(page);
+  // With no PIN set, Grown-ups returns straight to the parent view (never prompts to create a PIN on the child screen).
   await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
-  await expect(view.getByRole('heading', { name: 'Set a grown-up PIN' })).toBeVisible();
-  await shot('set-pin', { full: false });
-
-  const pin = view.getByLabel('Grown-up PIN');
-  await pin.fill('12');
-  await view.getByRole('button', { name: 'Continue' }).click();
-  await expect(view.getByText('Please enter 4 digits.')).toBeVisible();
-  await pin.fill(TEST_PIN);
-  await view.getByRole('button', { name: 'Continue' }).click();
-  await expect(view.getByRole('heading', { name: 'Type it again' })).toBeVisible();
-  await pin.fill('1111');
-  await view.getByRole('button', { name: 'Continue' }).click();
-  await expect(view.getByText('Those did not match. Try again.')).toBeVisible();
-  await pin.fill(TEST_PIN);
-  await view.getByRole('button', { name: 'Continue' }).click();
-  await pin.fill(TEST_PIN);
-  await view.getByRole('button', { name: 'Continue' }).click();
   await expect(childView(page)).toHaveCount(0);
   await expect(page.locator('#app')).not.toHaveAttribute('inert', '');
+  await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+
+  // Parent sets the PIN from the parent side.
+  await page.getByRole('button', { name: 'Child-view PIN' }).click();
+  const pinDialog = modal(page);
+  await expect(pinDialog.getByRole('heading', { name: 'Set child-view PIN' })).toBeVisible();
+  await shot('set-pin', { full: false });
+  await pinDialog.getByLabel('4-digit PIN', { exact: true }).fill(TEST_PIN);
+  await pinDialog.getByLabel('Confirm 4-digit PIN').fill('1111');
+  await pinDialog.getByRole('button', { name: 'Save PIN' }).click();
+  await expect(pinDialog.getByText('Those PINs did not match. Try again.')).toBeVisible();
+  await pinDialog.getByLabel('Confirm 4-digit PIN').fill(TEST_PIN);
+  await pinDialog.getByRole('button', { name: 'Save PIN' }).click();
+  await expectToast(page, 'Child-view PIN saved');
+  await expect(page.locator('#modal-root > div')).toHaveCount(0);
+
   // F16: only a salted hash is saved.
   const saved = await api.waitForState((s) => /^[0-9a-f]{64}$/.test(s.settings?.parentPinHash || ''));
   expect(saved.settings.parentPin).toBeUndefined();
   expect(JSON.stringify(saved)).not.toContain(`"${TEST_PIN}"`);
 
-  // Next time the PIN is asked for; a wrong one keeps the child view open.
+  // Next time Grown-ups requires the PIN; 5 wrong tries trigger a 15 s lockout.
   await openChildView(page);
   await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
   await expect(view.getByRole('heading', { name: 'Grown-ups only' })).toBeVisible();
   await expect(view).toContainText('Forgot the PIN? Reload the page to return to the grown-up view.');
+  const pin = view.getByLabel('Grown-up PIN');
+  await pin.fill('12');
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view.getByText('Please enter 4 digits.')).toBeVisible();
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    await pin.fill('0000');
+    await view.getByRole('button', { name: 'Continue' }).click();
+    await expect(view.getByText('That is not the PIN.')).toBeVisible();
+    if (attempt === 1) await shot('wrong-pin', { full: false });
+  }
+
+  // 5th wrong guess locks the PIN modal for 15 seconds.
   await pin.fill('0000');
   await view.getByRole('button', { name: 'Continue' }).click();
-  await expect(view.getByText('That is not the PIN.')).toBeVisible();
-  await shot('wrong-pin', { full: false });
-  // Back returns to the garden.
+  await expect(view.getByText(/Too many wrong tries\. Try again in 15 s\./)).toBeVisible();
+  await expect(pin).toBeDisabled();
+  await expect(view.getByRole('button', { name: 'Continue' })).toBeDisabled();
+
+  // Clicking Back and reopening Grown-ups does not clear the lockout.
   await view.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(view.getByRole('heading', { name: 'Morning, Rowan Example!' })).toBeVisible();
-  await leaveChildView(page);
+  await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
+  await expect(view.getByText(/Too many wrong tries\. Try again in 15 s\./)).toBeVisible();
+  await expect(pin).toBeDisabled();
+
+  // After the cooldown expires, the parent PIN works again.
+  await page.clock.setFixedTime(new Date(FIXED_NOW.getTime() + 16_000));
+  await expect(pin).toBeEnabled();
+  await pin.fill(TEST_PIN);
+  await view.getByRole('button', { name: 'Continue' }).click();
+  await expect(view).toHaveCount(0);
   await expect(page.getByRole('heading', { name: "Rowan Example's Wednesday" })).toBeVisible();
+
+  // Parent can also remove the PIN from the parent side.
+  await page.getByRole('button', { name: 'Child-view PIN' }).click();
+  await expect(modal(page).getByRole('heading', { name: 'Child-view PIN' })).toBeVisible();
+  await modal(page).getByRole('button', { name: 'Remove PIN' }).click();
+  await expectToast(page, 'Child-view PIN removed');
+  await api.waitForState((s) => !s.settings?.parentPinHash);
 });
 
 test('a story-time pick opens the child topic card and shows on the dashboard', async ({ page, gotoApp, shot }) => {

@@ -17,7 +17,7 @@ import {
 import { AI_CAPABILITIES, capabilityOffMessage, parseCapabilities } from './src/js/ai-capabilities.js';
 import { redactNames } from './src/js/redact.js';
 import { SCHEMA_VERSION, formatCopyName, schemaVersionOf } from './src/js/schema.js';
-import { validateDocument } from './src/js/document.js';
+import { stripOrphanLearnerKeys, validateDocument } from './src/js/document.js';
 import { CURRICULUM_ID, trimStandards } from './src/js/curriculum.js';
 import { MAX_FIGURE_BYTES, contentPolicyFor, figureIdOf, figureMeta, figureProblems } from './src/js/figures/contract.js';
 
@@ -264,7 +264,8 @@ function writeStateIfMatch(expected, data) {
     // changed (the format 3 repair shortens long texts): keep the stored file
     // as it was, once per format, so nothing is lost for good.
     if (stored !== null && schema > storedSchema) await keepFormatCopy(storedSchema, stored);
-    const { version: _version, updatedAt: _updatedAt, writeId, ...rest } = data;
+    const { version: _version, updatedAt: _updatedAt, writeId, ...rawRest } = data;
+    const { doc: rest } = stripOrphanLearnerKeys(rawRest);
     // An optional client-chosen id lets a tab recognise its own write later,
     // such as an unload beacon whose response it never saw. A body that merely
     // echoes the stored id (read, modify, write) is not that tab's write.

@@ -203,7 +203,7 @@ export const guideSections = () => [
   ]},
   { h: 'Child view', items: [
     ['Opening it', 'Press the button with your child’s name on the dashboard. “Grown-ups” returns to the parent view.'],
-    ['The grown-up PIN', 'The first time, you choose a 4-digit PIN; after that “Grown-ups” asks for it. It keeps a child from leaving with one tap. It is not a lock: four digits are easy to guess, and reloading the page always returns to the parent view, which is also the way back if you forget it. Harrington keeps only a scrambled (salted, hashed) copy of the PIN, never the digits themselves, and an export carries only that copy.'],
+    ['The grown-up PIN', 'Set, change or remove a 4-digit Child-view PIN from the parent sidebar (or the learner menu on a phone). When one is set, “Grown-ups” asks for it and pauses for 15 seconds (doubling on further misses) after 5 wrong tries; without one, “Grown-ups” returns straight to the parent view. It keeps a child from leaving with one tap. It is not a lock: four digits are easy to guess, and reloading the page always returns to the parent view, which is also the way back if you forget it. Harrington keeps only a scrambled (salted, hashed) copy of the PIN, never the digits themselves, and an export carries only that copy.'],
     ['What your child sees', 'Their garden (one plant per subject, described in words), today’s story time and number time picks, and “Tell about my day” for a voice note. No levels, XP or percentages in the view itself.'],
     ['Activity buttons', `Plant something new, Memory walk and Beat the clock open a test, recall cards or a challenge. ${NEEDS_AI}`],
   ]},

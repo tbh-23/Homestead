@@ -109,14 +109,17 @@ The parent's view of the day.
 Opened from the button with your child's name on the dashboard. **Grown-ups**
 returns to the parent view.
 
-**The grown-up PIN.** The first time, you choose a 4-digit PIN; after that
-**Grown-ups** asks for it. It keeps a child from leaving with one tap. It is
-not a lock: four digits are easy to guess, and reloading the page always
-returns to the parent view, which is also the way back if you forget it.
-Harrington keeps only a scrambled (salted, hashed) copy of the PIN, never the
-digits themselves, and an export carries only that copy. To clear it, close
-every Harrington tab, then remove `parentPinHash` and `parentPinSalt` from
-`settings` in the family data file.
+**The grown-up PIN.** Set or change a 4-digit **Child-view PIN** from the
+parent sidebar (or the learner menu on a phone). When one is set, **Grown-ups**
+asks for it and pauses for 15 seconds (doubling on further misses) after 5
+wrong tries; without one, **Grown-ups** returns straight to the parent view. It
+keeps a child from leaving with one tap. It is not a lock: four digits are
+easy to guess, and reloading the page always returns to the parent view, which
+is also the way back if you forget it. Harrington keeps only a scrambled
+(salted, hashed) copy of the PIN, never the digits themselves, and an export
+carries only that copy. To clear it, open **Child-view PIN** on the parent side
+and choose **Remove PIN**, or close every Harrington tab and remove
+`parentPinHash` and `parentPinSalt` from `settings` in the family data file.
 
 - **My garden.** One plant per subject, described in words, never numbers.
 - **Story time and number time.** Today's literacy and numeracy options for

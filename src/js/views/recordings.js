@@ -17,7 +17,7 @@ export function openRecordingsLibrary() {
       <span class="w-9 h-9 rounded-lg bg-[#a4473a]/10 flex items-center justify-center shrink-0"><i data-lucide="folder" class="w-5 h-5 text-[#a4473a]"></i></span>
       <div class="flex-1 min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">Recordings</h3>
-        <p class="text-xs text-ink-faint">Every voice recording for ${esc(student.name)}, grouped by section or topic</p>
+        <p class="text-xs text-ink-faint [overflow-wrap:anywhere]">Every voice recording for ${esc(student.name)}, grouped by section or topic</p>
       </div>
       <button id="new" class="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
     </div>

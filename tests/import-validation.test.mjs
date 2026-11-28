@@ -7,7 +7,7 @@ import { test } from 'node:test';
 globalThis.fetch = async () => { throw new Error('no network in this test'); };
 const store = await import('../src/js/store.js');
 const { SCHEMA_VERSION } = await import('../src/js/schema.js');
-const { validateDocument } = await import('../src/js/document.js');
+const { MAX_UNKNOWN_BYTES, MAX_UNKNOWN_FIELDS, stripOrphanLearnerKeys, validateDocument } = await import('../src/js/document.js');
 
 // An export from before birth months, interests, settings and versioning:
 // the first palette's color, progress and records only.
@@ -345,4 +345,47 @@ test('validateDocument gives field-specific errors for reading setup and saved b
     mutate(doc);
     assert.equal(validateDocument(doc), expected, label);
   }
+});
+
+test('unknown top-level fields are capped at 64 KB and 20 keys, and reported for import preview (HAR-56)', () => {
+  const small = { ...current(), futureWorkbook: { future: true }, futureNote: 'ok' };
+  const smallCheck = store.inspectImport(small);
+  assert.equal(smallCheck.ok, true);
+  assert.deepEqual(smallCheck.unknownFields, ['futureWorkbook', 'futureNote']);
+
+  // Exactly within 64 KB passes.
+  const fit = { ...current(), smuggled: 'x'.repeat(MAX_UNKNOWN_BYTES - 100) };
+  assert.equal(store.inspectImport(fit).ok, true);
+
+  // Over 64 KB is refused.
+  const tooBig = { ...current(), smuggled: 'x'.repeat(MAX_UNKNOWN_BYTES + 1) };
+  assert.equal(store.inspectImport(tooBig).error, 'The file\'s unrecognised fields are larger than 64 KB.');
+  assert.equal(validateDocument(tooBig), 'The file\'s unrecognised fields are larger than 64 KB.');
+
+  // Over 20 unknown fields is refused.
+  const tooMany = current();
+  for (let i = 0; i <= MAX_UNKNOWN_FIELDS; i += 1) tooMany[`extra_${i}`] = 1;
+  assert.equal(validateDocument(tooMany), `The file has more than ${MAX_UNKNOWN_FIELDS} unrecognised top-level fields.`);
+
+  // Prototype-property top-level keys are refused.
+  const protoTop = JSON.parse(JSON.stringify(current()));
+  Object.defineProperty(protoTop, '__proto__', { value: { admin: true }, enumerable: true, configurable: true });
+  assert.equal(validateDocument(protoTop), 'The file has an invalid top-level field name.');
+});
+
+test('stripOrphanLearnerKeys drops non-learner and prototype keys across per-learner maps (HAR-56)', () => {
+  const doc = JSON.parse(JSON.stringify(current()));
+  Object.defineProperty(doc.records, '__proto__', { value: [{ id: 'r_p', type: 'note' }], enumerable: true, configurable: true });
+  doc.records.not_a_learner = [{ id: 'r_o', type: 'note' }];
+  doc.progress.constructor = { 'count-to-5': { status: 'mastered' } };
+  doc.game.not_a_learner = { xp: 999, badges: {} };
+
+  const { doc: cleaned, dropped } = stripOrphanLearnerKeys(doc);
+  assert.equal(dropped, 4);
+  assert.equal(Object.hasOwn(cleaned.records, '__proto__'), false);
+  assert.equal(Object.hasOwn(cleaned.records, 'not_a_learner'), false);
+  assert.equal(Object.hasOwn(cleaned.progress, 'constructor'), false);
+  assert.equal(Object.hasOwn(cleaned.game, 'not_a_learner'), false);
+  assert.equal(cleaned.records.s_new.length, 2);
+  assert.equal(cleaned.progress.s_new['count-to-5'].status, 'learning');
 });

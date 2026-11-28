@@ -18,12 +18,13 @@ const TAXONOMY = {
   ] },
   'dependencies.json': { dependencies: [] },
 };
+let nextRawReply = undefined;
 globalThis.fetch = async (path, options = {}) => {
   const url = String(path);
   const json = (body, ok = true) => ({ ok, status: ok ? 200 : 404, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
   if (url === '/api/ai') {
     sent.push(JSON.parse(options.body));
-    return json({ content: nextCompletion ?? COMPLETION });
+    return json(nextRawReply !== undefined ? nextRawReply : { content: nextCompletion ?? COMPLETION });
   }
   if (url.startsWith('/api/taxonomy/')) {
     const body = TAXONOMY[url.slice('/api/taxonomy/'.length)];
@@ -33,6 +34,7 @@ globalThis.fetch = async (path, options = {}) => {
 };
 
 const ai = await import('../src/js/ai.js');
+const { explainAiError } = await import('../src/js/ai-status.js');
 const store = await import('../src/js/store.js');
 const { loadTaxonomy } = await import('../src/js/data.js');
 const { AI_CAPABILITIES } = await import('../src/js/ai-capabilities.js');
@@ -231,6 +233,19 @@ test('redactNames treats names that are common words as whole words only', () =>
   assert.equal(redactNames('Dr. O(Neil)', ['O(Neil)']), 'Dr. the child', 'regex characters in a name are literal');
 });
 
+test('redactNames redacts nicknames in brackets or quotes, comma-joined names and control-separated words (HAR-41)', () => {
+  assert.equal(redactNames('Xander counted to 20', ['Alexander (Xander) Quill']), 'the child counted to 20');
+  assert.equal(redactNames('Alexander (Xander) Quill counted to 20', ['Alexander (Xander) Quill']), 'the child counted to 20');
+  assert.equal(redactNames('Lizzy did well', ['Elizabeth "Lizzy" Fenn']), 'the child did well');
+  assert.equal(redactNames('Lizzy did well', ["Elizabeth 'Lizzy' Fenn"]), 'the child did well');
+  assert.equal(redactNames('Ivy and Rose read together', ['Ivy, Rose']), 'the child and the child read together');
+  assert.equal(redactNames('Ada counted and Quill read', ['Ada\u0007Quill']), 'the child counted and the child read');
+  assert.equal(redactNames('Ada\u0007Quill waved', ['Ada\u0007Quill']), 'the child waved');
+  assert.equal(redactNames('Ada and Quill waved', ['Ada\x00Quill']), 'the child and the child waved');
+  assert.equal(redactNames('Ada Quill waved', ['Ada\x00Quill']), 'the child waved');
+  assert.equal(redactNames('Al knows al', ['Alexander (Al) Quill']), 'the child knows al');
+});
+
 // The independent review's stub transcript, row by row: spelling variants of a
 // profile name must not leak.
 const VARIANT_LEARNERS = ['Mary-Jane Smith', "Mia O'Neil", 'Zoë Park', 'José Ruiz'];
@@ -395,5 +410,27 @@ test('a mastery test keeps positive points and gives anything else 1, so a score
     assert.deepEqual(test.questions.map((q) => q.points), [0.5, 1, 1, 1]);
   } finally {
     nextCompletion = null;
+  }
+});
+
+test('aiExplain and aiQuiz reject empty, whitespace, null, or non-string AI answers instead of printing [object Object] (HAR-42)', async () => {
+  for (const badReply of [{ content: null }, { content: '' }, { content: '   \n\t ' }, {}, { content: { unexpected: true } }, null]) {
+    nextRawReply = badReply;
+    try {
+      for (const fn of [ai.aiExplain, ai.aiQuiz]) {
+        await assert.rejects(
+          () => fn(topic),
+          (err) => {
+            const explained = explainAiError(err);
+            assert.equal(explained.kind, 'provider');
+            assert.match(explained.message, /Try again/);
+            assert.doesNotMatch(err.message, /\[object Object\]/);
+            return true;
+          },
+        );
+      }
+    } finally {
+      nextRawReply = undefined;
+    }
   }
 });
