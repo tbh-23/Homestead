@@ -126,7 +126,7 @@ function render(student) {
         <span class="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-display font-600 shadow-[0_0_0_4px_#fffdf8]" style="background:${esc(student.color || '#3f6b3b')}">${esc(initials(student.name))}</span>
         <button id="exit" class="flex items-center gap-1.5 h-11 px-4 rounded-full bg-paper-card text-sm font-600 text-ink" aria-label="Back to the grown-up view"><i data-lucide="lock" class="w-4 h-4"></i>Grown-ups</button>
       </div>
-      <h1 class="font-display text-4xl font-600 mt-4">${greet}, ${name}!</h1>
+      <h1 class="font-display text-4xl font-600 mt-4 [overflow-wrap:anywhere]">${greet}, ${name}!</h1>
       <p class="text-ink-soft mt-1 flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4 text-butter-deep"></i>${new Date().toLocaleDateString(undefined, { weekday: 'long' })}</p>
     </div>
   </header>`);

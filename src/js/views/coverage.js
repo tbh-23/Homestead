@@ -41,11 +41,11 @@ export function renderCoverage(params, { navigate }) {
   root.appendChild(el(`<div class="mb-5">
     <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">Records</p>
     <h1 class="font-display text-2xl sm:text-3xl font-600">${esc(CURRICULUM_NAME)} coverage</h1>
-    <p class="text-ink-soft text-sm mt-1"><span class="font-600 text-ink">${esc(active.name)}</span> · ${esc(yearLabel(year))} · version 9 content descriptions</p>
+    <p class="text-ink-soft text-sm mt-1 [overflow-wrap:anywhere]"><span class="font-600 text-ink">${esc(active.name)}</span> · ${esc(yearLabel(year))} · version 9 content descriptions</p>
   </div>`));
 
   const controls = el(`<div class="no-print flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
-    <div class="flex-1">
+    <div class="flex-1 min-w-0">
       <label for="cov-year" class="text-sm font-medium block mb-1.5">Year level</label>
       <select id="cov-year" class="w-full sm:w-64 min-h-11 px-3.5 rounded-xl border border-paper-line bg-paper text-sm">${YEARS.map(y => `<option value="${esc(y)}" ${y === year ? 'selected' : ''}>${esc(yearLabel(y))}${y === saved ? ` (${esc(active.name)}'s year)` : ''}</option>`).join('')}</select>
     </div>
@@ -55,10 +55,10 @@ export function renderCoverage(params, { navigate }) {
   controls.querySelector('#cov-print').onclick = () => window.print();
   root.appendChild(controls);
   if (!saved) {
-    root.appendChild(el(`<p class="no-print text-xs text-ink-faint -mt-2 mb-4">${esc(active.name)} has no ${esc(CURRICULUM_NAME)} year set, so this shows the year that usually fits their age. Set one under Students &gt; Edit to order topics by it.</p>`));
+    root.appendChild(el(`<p class="no-print text-xs text-ink-faint -mt-2 mb-4 [overflow-wrap:anywhere]">${esc(active.name)} has no ${esc(CURRICULUM_NAME)} year set, so this shows the year that usually fits their age. Set one under Students &gt; Edit to order topics by it.</p>`));
   }
 
-  root.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-5">Each status comes from ${esc(active.name)}'s records in Harrington. <span class="font-600 text-ink">Linked topics mastered</span>: every linked topic is marked mastered. <span class="font-600 text-ink">Evidence</span>: at least one linked topic has a record (such as an observation), a passed check or challenge, or practice. A saved lesson is a plan, not evidence, so it does not count. <span class="font-600 text-ink">Not yet</span>: nothing recorded for a linked topic. The links between topics and content descriptions are a map from the Marble Skill Taxonomy, not a certificate; a status describes recorded evidence, not a judgment that a content description has been met.</p>`));
+  root.appendChild(el(`<p class="text-sm text-ink-soft leading-relaxed mb-5 [overflow-wrap:anywhere]">Each status comes from ${esc(active.name)}'s records in Harrington. <span class="font-600 text-ink">Linked topics mastered</span>: every linked topic is marked mastered. <span class="font-600 text-ink">Evidence</span>: at least one linked topic has a record (such as an observation), a passed check or challenge, or practice. A saved lesson is a plan, not evidence, so it does not count. <span class="font-600 text-ink">Not yet</span>: nothing recorded for a linked topic. The links between topics and content descriptions are a map from the Marble Skill Taxonomy, not a certificate; a status describes recorded evidence, not a judgment that a content description has been met.</p>`));
 
   const body = el(`<div class="cov-body"></div>`);
   root.appendChild(body);

@@ -171,3 +171,31 @@ test('the refusal toast names the current problem once the parent fixes the firs
   await settle();
   assert.equal(refusals().length, 0);
 });
+
+test('an async server refusal clears a visible confirmation toast so it never sits beside the refusal (HAR-42)', async () => {
+  served = familyDoc(SCHEMA_VERSION);
+  await store.loadAll();
+  reset();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    if (String(url) === '/api/state' && options.method === 'PUT') {
+      return json(422, { error: 'Server refused this test change.' });
+    }
+    return realFetch(url, options);
+  };
+  try {
+    store.addRecord(STUDENT.id, { type: 'observation', title: 'Counted acorns', note: '' });
+    toast('Record saved', 'success');
+    await settle();
+    assert.ok(toasts().includes('Record saved'), 'confirmation shows before the debounced save fails');
+    await store.flushSaves();
+    await settle();
+    assert.ok(!toasts().includes('Record saved'), 'confirmation toast is removed when refusal toast appears');
+    assert.match(toasts().join('\n'), /Harrington refused these changes: Server refused this test change\./);
+  } finally {
+    globalThis.fetch = realFetch;
+    // Reset cleanly back to saved state for any subsequent assertions.
+    served = familyDoc(SCHEMA_VERSION);
+    await store.loadAll();
+  }
+});

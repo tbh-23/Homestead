@@ -40,7 +40,7 @@ function curriculumLinks(t, standards, active) {
   let open = null;
   for (const s of linked) {
     const atYear = year && s.yearLevels.includes(year);
-    const chip = el(`<button type="button" class="ac-chip min-h-11 px-3 rounded-full border text-xs font-medium text-left ${atYear ? 'border-brand/50 bg-brand-light text-brand-dark' : 'border-paper-line bg-paper-card text-ink-soft hover:border-brand/40'}" aria-expanded="false"></button>`);
+    const chip = el(`<button type="button" class="ac-chip min-h-11 max-w-full px-3 py-1.5 rounded-full border text-xs font-medium text-left break-words ${atYear ? 'border-brand/50 bg-brand-light text-brand-dark' : 'border-paper-line bg-paper-card text-ink-soft hover:border-brand/40'}" aria-expanded="false"></button>`);
     chip.textContent = `${s.code} · ${yearsLabel(s.yearLevels)} · ${s.strand}`;
     if (atYear) chip.title = `${active.name}'s year: ${yearLabel(year)}`;
     chip.onclick = () => {
@@ -88,8 +88,8 @@ export function renderTopic(params, { navigate }) {
         <span class="px-2.5 py-1 rounded-full bg-paper-card border border-paper-line text-ink-faint capitalize">${esc((t.type||'').toLowerCase())}</span>
       </div>
       ${active ? '<div class="status-control"></div>' : ''}
-      <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight">${esc(t.name)}</h1>
-      <p class="text-ink-soft mt-2 leading-relaxed">${esc(t.description || '')}</p>
+      <h1 class="font-display text-2xl sm:text-3xl font-600 leading-tight break-words [overflow-wrap:anywhere]">${esc(t.name)}</h1>
+      <p class="text-ink-soft mt-2 leading-relaxed break-words [overflow-wrap:anywhere]">${esc(t.description || '')}</p>
     </div>`));
 
   root.querySelector('.status-control')?.replaceWith(statusControl(t, active, unlocked));
@@ -109,13 +109,13 @@ export function renderTopic(params, { navigate }) {
   }
 
   // Full lesson call-to-action
-  const lessonCta = el(`<div class="rounded-2xl border border-brand/30 bg-brand-light/60 p-4 sm:p-5 mb-5 flex flex-col sm:flex-row sm:items-center gap-3">
+  const lessonCta = el(`<div class="rounded-2xl border border-brand/30 bg-brand-light/60 p-4 sm:p-5 mb-5 flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
     <span class="w-11 h-11 rounded-xl bg-brand flex items-center justify-center shrink-0"><i data-lucide="notebook-text" class="w-5.5 h-5.5 text-white"></i></span>
-    <div class="flex-1">
+    <div class="flex-1 min-w-0">
       <p class="font-600">Ready-to-teach lesson</p>
-      <p class="text-sm text-ink-soft leading-relaxed">A complete plan with what to say, do, practice and check — usable today with ${esc(active?.name || 'your child')}.</p>
+      <p class="text-sm text-ink-soft leading-relaxed [overflow-wrap:anywhere]">A complete plan with what to say, do, practice and check — usable today with ${esc(active?.name || 'your child')}.</p>
     </div>
-    <div class="cta-actions shrink-0 flex flex-col sm:flex-row gap-2">
+    <div class="cta-actions shrink-0 flex flex-col sm:flex-row gap-2 max-w-full">
       <button id="openlesson" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="book-open-text" class="w-4 h-4"></i>Open full lesson</button>
       <button id="openprint" class="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-paper-card border border-brand/30 text-brand-dark font-medium hover:border-brand transition-colors"><i data-lucide="printer" class="w-4 h-4"></i>Print &amp; go</button>
     </div>
@@ -167,7 +167,7 @@ export function renderTopic(params, { navigate }) {
   // --- Assessment prompt ---
   if (t.assessmentPrompt) {
     const prompt = t.assessmentPrompt.replace(/\{\{name\}\}/g, active?.name || 'your child');
-    mainCol.appendChild(section('help-circle', 'Quick check', el(`<p class="text-sm text-ink-soft leading-relaxed italic">"${esc(prompt)}"</p>`)));
+    mainCol.appendChild(section('help-circle', 'Quick check', el(`<p class="text-sm text-ink-soft leading-relaxed italic [overflow-wrap:anywhere]">"${esc(prompt)}"</p>`)));
   }
 
   // --- Active recall ---
@@ -202,12 +202,12 @@ export function renderTopic(params, { navigate }) {
 }
 
 function section(icon, title, contentEl, extra = '') {
-  const s = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5">
-    <div class="flex items-center justify-between mb-3.5">
-      <h2 class="font-600 flex items-center gap-2"><i data-lucide="${esc(icon)}" class="w-4.5 h-4.5 text-brand-dark"></i>${esc(title)}</h2>
-      <span>${extra}</span>
+  const s = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-5 min-w-0">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3.5">
+      <h2 class="font-600 flex items-center gap-2 min-w-0"><i data-lucide="${esc(icon)}" class="w-4.5 h-4.5 text-brand-dark shrink-0"></i>${esc(title)}</h2>
+      <span class="shrink-0">${extra}</span>
     </div>
-    <div class="body"></div>
+    <div class="body min-w-0"></div>
   </div>`);
   s.querySelector('.body').appendChild(contentEl);
   return s;
@@ -376,7 +376,7 @@ function connectionsSection(t, student, navigate) {
     if (!topic) return null;
     const st = student ? store.statusOf(student.id, p.id) : 'none';
     const mastered = st === 'mastered';
-    const row = el(`<button class="w-full text-left flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper hover:border-brand/40 hover:bg-brand-light/30 transition-colors group">
+    const row = el(`<button class="w-full min-w-0 text-left flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper hover:border-brand/40 hover:bg-brand-light/30 transition-colors group">
       ${growthIcon(stageForStatus(st, student ? isUnlocked(student.id, p.id) : false), 26)}
       <span class="flex-1 min-w-0">
         <span class="block text-sm text-ink group-hover:text-brand-dark leading-snug truncate">${esc(topic.name)}</span>
@@ -406,7 +406,7 @@ function connectionsSection(t, student, navigate) {
   }
 
   // 2) This topic (the anchor)
-  flow.appendChild(el(`<div class="rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-white" style="background:${esc(meta.color)}">
+  flow.appendChild(el(`<div class="rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-white min-w-0" style="background:${esc(meta.color)}">
     <i data-lucide="${esc(meta.icon)}" class="w-4 h-4 shrink-0"></i>
     <span class="flex-1 min-w-0"><span class="block text-[10px] uppercase tracking-wide opacity-80">You are here</span><span class="block text-sm font-600 leading-snug truncate">${esc(t.name)}</span></span>
   </div>`));
@@ -439,10 +439,10 @@ function referenceSection(t) {
 }
 
 function linkRow(l) {
-  return el(`<a href="${esc(l.url)}" target="_blank" rel="noopener" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors group">
-    <i data-lucide="${esc(l.icon)}" class="w-4 h-4 text-ink-soft group-hover:text-brand-dark"></i>
-    <span class="text-sm flex-1">${esc(l.label)}</span>
-    <i data-lucide="external-link" class="w-3.5 h-3.5 text-ink-faint"></i>
+  return el(`<a href="${esc(l.url)}" target="_blank" rel="noopener" class="flex items-center gap-2.5 p-2.5 rounded-lg border border-paper-line hover:border-brand/40 hover:bg-paper transition-colors group min-w-0">
+    <i data-lucide="${esc(l.icon)}" class="w-4 h-4 shrink-0 text-ink-soft group-hover:text-brand-dark"></i>
+    <span class="text-sm flex-1 min-w-0 break-words">${esc(l.label)}</span>
+    <i data-lucide="external-link" class="w-3.5 h-3.5 shrink-0 text-ink-faint"></i>
   </a>`);
 }
 
@@ -453,8 +453,8 @@ function activitiesSection(t) {
     const wrap = el(`<div><p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-2 flex items-center gap-1.5"><i data-lucide="${esc(icon)}" class="w-3.5 h-3.5"></i>${esc(title)}</p><div class="grid sm:grid-cols-2 gap-2.5"></div></div>`);
     const g = wrap.querySelector('div.grid');
     items.forEach(a => {
-      const card = el(`<button class="text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
-        <div class="flex items-center gap-2 mb-1"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-ink-faint group-hover:text-brand-dark"></i></div>
+      const card = el(`<button class="min-w-0 text-left rounded-xl border border-paper-line bg-paper p-3 card-hover group">
+        <div class="flex items-center gap-2 mb-1 min-w-0"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 shrink-0 text-brand-dark"></i><p class="font-600 text-sm flex-1 min-w-0 break-words">${esc(a.title)}</p><i data-lucide="arrow-up-right" class="w-3.5 h-3.5 shrink-0 text-ink-faint group-hover:text-brand-dark"></i></div>
         <p class="text-xs text-ink-soft leading-relaxed clamp-3">${esc(a.body)}</p>
         <span class="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-brand-dark"><i data-lucide="list-ordered" class="w-3 h-3"></i>Get instructions</span>
       </button>`);
@@ -462,8 +462,8 @@ function activitiesSection(t) {
       if (ai) { g.appendChild(card); return; }
       // Without a provider the idea itself still helps; only new instructions need AI,
       // so instructions already in the cache still open.
-      const idea = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
-        <div class="flex items-center gap-2 mb-1"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 text-brand-dark"></i><p class="font-600 text-sm flex-1">${esc(a.title)}</p></div>
+      const idea = el(`<div class="min-w-0 rounded-xl border border-paper-line bg-paper p-3">
+        <div class="flex items-center gap-2 mb-1 min-w-0"><i data-lucide="${esc(a.icon)}" class="w-4 h-4 shrink-0 text-brand-dark"></i><p class="font-600 text-sm flex-1 min-w-0 break-words">${esc(a.title)}</p></div>
         <p class="text-xs text-ink-soft leading-relaxed mb-2">${esc(a.body)}</p>
       </div>`);
       idea.appendChild(aiUnavailableChip('activity'));
@@ -495,7 +495,8 @@ function aiSection(t) {
     out.appendChild(loading);
     try {
       const text = await fn(t);
-      out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4">${analysisHtml(text)}</div>`;
+      if (!String(text ?? '').trim()) throw new Error('AI provider returned an empty response');
+      out.innerHTML = `<div class="ai-prose text-sm text-ink-soft bg-paper border border-paper-line rounded-xl p-4 [overflow-wrap:anywhere] overflow-x-auto">${analysisHtml(text)}</div>`;
     } catch (e) {
       out.innerHTML = '';
       out.appendChild(aiErrorBlock(e, () => run(fn, label), { compact: true }));
@@ -541,14 +542,14 @@ function recordItem(r) {
     assessment: { icon: 'clipboard-check', label: 'Assessment', color: '#3f6b3b' },
     recording: { icon: 'mic', label: 'Recording', color: '#a4473a' },
   }[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
-  const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3">
-    <div class="flex items-center gap-2 mb-1 text-xs">
+  const item = el(`<div class="rounded-xl border border-paper-line bg-paper p-3 min-w-0">
+    <div class="flex flex-wrap items-center gap-2 mb-1 text-xs">
       <span class="flex items-center gap-1 font-600" style="color:${esc(typeMeta.color)}"><i data-lucide="${esc(typeMeta.icon)}" class="w-3.5 h-3.5"></i>${esc(typeMeta.label)}</span>
       ${r.rating ? `<span class="flex items-center gap-0.5 text-ink-faint">${ratingStars(r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
     </div>
-    ${r.title ? `<p class="font-600 text-sm">${esc(r.title)}</p>` : ''}
-    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
+    ${r.title ? `<p class="font-600 text-sm break-words [overflow-wrap:anywhere]">${esc(r.title)}</p>` : ''}
+    ${r.note ? `<p class="text-sm text-ink-soft mt-0.5 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${esc(r.note)}</p>` : ''}
   </div>`);
   if (r.audioPath) item.appendChild(audioPlayer(r.audioPath, r.duration));
   return item;

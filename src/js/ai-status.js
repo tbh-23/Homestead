@@ -39,7 +39,7 @@ export function explainAiError(err) {
 export function aiUnavailableChip(capability = null, href = AI_HELP_HREF) {
   const off = store.aiSwitchedOff(capability);
   const title = off ? 'Switch this AI feature on to use it' : 'Set up a local AI provider to use this';
-  return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="${title}" class="ai-unavailable inline-flex max-w-full items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>${off ? AI_SWITCHED_OFF_LABEL : AI_UNAVAILABLE_LABEL}</a>`);
+  return el(`<a href="${esc(href)}" target="_blank" rel="noopener" title="${title}" class="ai-unavailable inline-flex max-w-full min-w-0 items-center gap-1.5 px-2.5 py-1 rounded-full border border-paper-line bg-paper text-xs font-medium text-ink-faint hover:text-ink-soft hover:border-ink-faint/40 transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5 shrink-0"></i><span class="min-w-0">${off ? AI_SWITCHED_OFF_LABEL : AI_UNAVAILABLE_LABEL}</span></a>`);
 }
 
 // The control itself when its `capability` (or any of an array of them) can

@@ -20,7 +20,7 @@ export function renderInsights(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-5">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Teacher Insights</h1>
-    <p class="text-ink-soft text-sm mt-1">Feedback and next steps for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>, based on real progress and your records.</p>
+    <p class="text-ink-soft text-sm mt-1 [overflow-wrap:anywhere]">Feedback and next steps for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>, based on real progress and your records.</p>
   </div>`));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to see insights.</p>`)); return root; }
@@ -31,7 +31,7 @@ export function renderInsights(params, { navigate }) {
   if (pending.length || adaptEntries.length) {
     const adCard = el(`<div class="bg-paper-card border border-brand/30 rounded-2xl p-5 mb-5">
       <h2 class="font-600 flex items-center gap-2 mb-1"><i data-lucide="trending-up" class="w-4.5 h-4.5 text-brand-dark"></i>Adaptive suggestions</h2>
-      <p class="text-xs text-ink-soft mb-3">Based on how ${esc(active.name)} is doing. You decide — nothing changes without your approval.</p>
+      <p class="text-xs text-ink-soft mb-3 [overflow-wrap:anywhere]">Based on how ${esc(active.name)} is doing. You decide — nothing changes without your approval.</p>
       <div id="sugs" class="space-y-2"></div>
       <div id="active" class="mt-3"></div>
     </div>`);
@@ -133,7 +133,7 @@ export function renderInsights(params, { navigate }) {
       <h2 class="font-600 flex items-center gap-2"><i data-lucide="sparkles" class="w-4.5 h-4.5 text-brand-dark"></i>Progress review</h2>
       <button id="gen" class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors"><i data-lucide="wand-2" class="w-4 h-4"></i>Generate</button>
     </div>
-    <div id="out"><p class="text-sm text-ink-faint">Generate a personalized review of ${esc(active.name)}'s ${esc(selSubject)} progress, drawing on your records and their mastery so far.</p></div>
+    <div id="out"><p class="text-sm text-ink-faint [overflow-wrap:anywhere]">Generate a personalized review of ${esc(active.name)}'s ${esc(selSubject)} progress, drawing on your records and their mastery so far.</p></div>
   </div>`);
   const out = fbCard.querySelector('#out');
   const gen = fbCard.querySelector('#gen');
@@ -145,7 +145,7 @@ export function renderInsights(params, { navigate }) {
   if (store.aiAvailable('review')) out.before(privacy);
   gen.onclick = async () => {
     const includeNotes = !!privacy.querySelector('.include-notes')?.checked;
-    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3"><div class="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>Reviewing ${esc(active.name)}'s work${includeNotes ? ' (notes included)' : ''}\u2026</div>`;
+    out.innerHTML = `<div class="flex items-center gap-2 text-sm text-ink-soft py-3 [overflow-wrap:anywhere]"><div class="w-4 h-4 shrink-0 border-2 border-brand border-t-transparent rounded-full animate-spin"></div><span>Reviewing ${esc(active.name)}'s work${includeNotes ? ' (notes included)' : ''}\u2026</span></div>`;
     try {
       const recentTopics = recentActivity(active.id, 10)
         .filter(a => a.topic.subject === selSubject)

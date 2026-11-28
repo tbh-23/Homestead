@@ -58,7 +58,7 @@ export function renderLevelset(params, { navigate }) {
   root.appendChild(el(`<div class="mb-5">
     <p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1">Parent view</p>
     <h1 class="font-display text-2xl sm:text-3xl font-600">Level-set workbook</h1>
-    <p class="text-ink-soft text-sm mt-1 leading-relaxed">Find where <span class="font-600 text-ink">${esc(student.name)}</span> is in reading and number, one short sheet at a time: one area, up to twelve topics. Mark each topic <b>Yes</b> if you have seen them do it, <b>Not yet</b> if not, or <b>Unsure</b> to check it later by watching. Saving a sheet keeps your answers; nothing is marked until you confirm the list at the end.</p>
+    <p class="text-ink-soft text-sm mt-1 leading-relaxed [overflow-wrap:anywhere]">Find where <span class="font-600 text-ink">${esc(student.name)}</span> is in reading and number, one short sheet at a time: one area, up to twelve topics. Mark each topic <b>Yes</b> if you have seen them do it, <b>Not yet</b> if not, or <b>Unsure</b> to check it later by watching. Saving a sheet keeps your answers; nothing is marked until you confirm the list at the end.</p>
   </div>`));
 
   // Lane tabs

@@ -466,3 +466,104 @@ test('no horizontal overflow: topic finder with a path', async ({ page, gotoApp,
   await noHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });
+
+// ---- HAR-42: Phone and polish regressions ----
+
+for (const width of [360, 390, 412]) {
+  test(`HAR-42: dashboard with Recent growth, records header, and topic fit inside ${width} px`, async ({ page, gotoApp, errors }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await gotoApp({
+      seed: {
+        progress: {
+          [TOPICS.oneToOne.id]: 'learning',
+          [TOPICS.howMany.id]: 'practicing',
+          [TOPICS.rote100.id]: 'mastered',
+        },
+        records: [
+          { type: 'observation', title: 'Counted the stairs out loud', note: 'Got to 12.', rating: 4, topicId: TOPICS.oneToOne.id },
+        ],
+      },
+    });
+    const growth = page.locator('section', { has: page.getByRole('heading', { name: 'Recent growth' }) });
+    await expect(growth.getByRole('button').first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `dashboard at ${width}px`).toBe(true);
+    await noHorizontalOverflow(page);
+
+    await page.goto('/#records');
+    const newBtn = page.getByRole('button', { name: 'New record' });
+    await expect(newBtn).toBeVisible();
+    const box = await newBtn.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `New record button clipped at ${width}px`).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `records at ${width}px`).toBe(true);
+    await noHorizontalOverflow(page);
+
+    await page.goto(`/#topic/${TOPICS.oneToOne.id}`);
+    await expect(page.getByRole('heading', { level: 1, name: TOPICS.oneToOne.name })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `topic at ${width}px`).toBe(true);
+    await noHorizontalOverflow(page);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('HAR-42: long unbroken 60-char learner name wraps instead of overflowing at 360 px', async ({ page, gotoApp, errors }) => {
+  const longName = 'Alexandria'.repeat(6); // 60 unbroken chars (NAME_MAX)
+  await page.setViewportSize({ width: 360, height: 800 });
+  await gotoApp({
+    seed: {
+      extra: {
+        students: [{ id: 's_long', name: longName, birthYear: 2020, color: '#3f6b3b', createdAt: 1, startDate: TODAY_KEY }],
+        activeStudentId: 's_long',
+        progress: { s_long: { [TOPICS.oneToOne.id]: { status: 'learning', updatedAt: Date.now() } } },
+      },
+    },
+  });
+  for (const hash of ['', 'records', `topic/${TOPICS.oneToOne.id}`, 'calendar', 'find', 'insights', 'learner/s_long']) {
+    await page.goto(`/#${hash}`);
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `long name at #${hash}`).toBe(true);
+    await noHorizontalOverflow(page);
+  }
+  await page.goto('/#');
+  await page.getByRole('button', { name: new RegExp(`${longName}'s view`) }).click();
+  await expect(childView(page)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'long name in child view').toBe(true);
+  await noHorizontalOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+test('HAR-42: calendar caps 600 extras on a single day behind "Show all"', async ({ page, gotoApp, errors }) => {
+  const extras = Array.from({ length: 600 }, (_, i) => ({
+    id: `x_${i}`, kind: 'practice', topicId: TOPICS.oneToOne.id,
+    topicName: `${TOPICS.oneToOne.name} #${i + 1}`, subject: 'Mathematics',
+    title: `Extra practice #${i + 1}`,
+  }));
+  await gotoApp({
+    seed: { extra: { plan: { [LEARNERS.rowan.id]: { moves: {}, done: {}, extras: { [TODAY_KEY]: extras } } } } },
+    hash: 'calendar',
+  });
+  const exList = page.locator('#exlist');
+  await expect(exList.locator('> div')).toHaveCount(10);
+  const showAll = page.getByRole('button', { name: 'Show all (590 more)' });
+  await expect(showAll).toBeVisible();
+  await showAll.click();
+  await expect(exList.locator('> div')).toHaveCount(600);
+  await expect(showAll).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('HAR-42: empty or null AI answer shows Try again error, never [object Object]', async ({ page, gotoApp }) => {
+  await gotoApp({ seed: {}, hash: `topic/${TOPICS.oneToOne.id}` });
+  await page.route('**/api/ai', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ content: null }),
+  }));
+  const helper = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { level: 2, name: 'AI teaching helper', exact: true }) });
+  for (const btnName of ['Explain simply', 'Make a mini-quiz']) {
+    await helper.getByRole('button', { name: btnName }).click();
+    await expect(helper.getByText('The AI provider sent back an error or an answer Harrington couldn’t use. Try again.')).toBeVisible();
+    await expect(helper.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(helper).not.toContainText('[object Object]');
+  }
+});
