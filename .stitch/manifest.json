@@ -1,0 +1,183 @@
+{
+  "version": "1.0",
+  "stitch": {
+    "projectId": "16580032727805820358",
+    "referenceScreen": {
+      "id": "8665685105985574847",
+      "route": "/child-view/topic",
+      "title": "Child View — Topic Activity",
+      "deviceType": "DESKTOP",
+      "extractedAt": "2026-11-28T07:19:27.490Z"
+    },
+    "referenceScreens": [
+      {
+        "id": "10882484671001127508",
+        "route": "/dashboard",
+        "title": "Dashboard",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:23:45.899Z"
+      },
+      {
+        "id": "17311235421179860842",
+        "route": "/child-view",
+        "title": "Child View",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:24:00.303Z"
+      },
+      {
+        "id": "10490654386106596702",
+        "route": "/map",
+        "title": "Curriculum Map",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:24:09.869Z"
+      },
+      {
+        "id": "15542670620560556167",
+        "route": "/topic",
+        "title": "Topic & Teaching Guide",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:24:23.803Z"
+      },
+      {
+        "id": "11429314575566189998",
+        "route": "/records",
+        "title": "Records & ACARA Coverage",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:24:32.869Z"
+      },
+      {
+        "id": "1679076740875540715",
+        "route": "/books",
+        "title": "Reading & Decodable Books",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T06:24:44.691Z"
+      },
+      {
+        "id": "14830749956915077373",
+        "route": "/calendar",
+        "title": "Daily Calendar",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:12:44.467Z"
+      },
+      {
+        "id": "3602147643118927695",
+        "route": "/map/skill-tree",
+        "title": "Skill Tree & Quest Log",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:12:54.239Z"
+      },
+      {
+        "id": "4941479225651537349",
+        "route": "/insights",
+        "title": "Teacher Insights",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:03.405Z"
+      },
+      {
+        "id": "8969381668512943246",
+        "route": "/coverage",
+        "title": "Australian Curriculum Coverage",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:14.381Z"
+      },
+      {
+        "id": "6462434853975763433",
+        "route": "/learner/reading",
+        "title": "Learner Reading & Phonics Setup",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:25.724Z"
+      },
+      {
+        "id": "18442921773923334392",
+        "route": "/find",
+        "title": "Find a Topic",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:33.428Z"
+      },
+      {
+        "id": "16097233007812076431",
+        "route": "/levelset",
+        "title": "Level-Set Workbook",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:41.487Z"
+      },
+      {
+        "id": "17795137469917954885",
+        "route": "/figure",
+        "title": "Interactive Figure (Simple Circuit)",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:49.895Z"
+      },
+      {
+        "id": "15147507298454030295",
+        "route": "/settings",
+        "title": "Settings & AI Provider",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:13:59.239Z"
+      },
+      {
+        "id": "6385007345083311780",
+        "route": "/onboard",
+        "title": "Onboarding — Add First Student",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:14:07.474Z"
+      },
+      {
+        "id": "1000828478355366194",
+        "route": "/guide",
+        "title": "In-App Guide",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:14:21.157Z"
+      },
+      {
+        "id": "3803835057947854763",
+        "route": "/notifications",
+        "title": "Notifications & Reminders",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:14:34.880Z"
+      },
+      {
+        "id": "13261254529157885814",
+        "route": "/records/new",
+        "title": "New Record Modal",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:14:42.241Z"
+      },
+      {
+        "id": "12750695144034723500",
+        "route": "/settings/pin",
+        "title": "Parent Child-View PIN Setup",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:14:55.138Z"
+      },
+      {
+        "id": "11181921046264371141",
+        "route": "/child-view/pin",
+        "title": "Child View — Grown-Ups PIN Gate",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:15:08.020Z"
+      },
+      {
+        "id": "18305378149350424296",
+        "route": "/signin",
+        "title": "Firebase Invite-Only Sign-In",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:15:15.500Z"
+      },
+      {
+        "id": "12054125002780267745",
+        "route": "/child-view/collection",
+        "title": "Child View — My Collection (Badges)",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:17:45.969Z"
+      },
+      {
+        "id": "8665685105985574847",
+        "route": "/child-view/topic",
+        "title": "Child View — Topic Activity",
+        "deviceType": "DESKTOP",
+        "extractedAt": "2026-11-28T07:19:27.490Z"
+      }
+    ]
+  }
+}

@@ -73,6 +73,24 @@ src/docs/GUIDE.md     The full written feature guide
   dead-code, copy, and AI-status checks — under 30 seconds, no build);
   `npm test` runs everything.
 
+## Stitch-first design workflow
+
+Google Stitch (`projectId: 16580032727805820358`, bound in `.stitch.json`) and
+[`DESIGN.md`](DESIGN.md) are the design source of truth for Harrington:
+
+- **Start UI changes in Stitch:** Design new screens or edit existing ones on
+  Stitch Canvas (`stitch open project 16580032727805820358`), grounded in
+  Harrington's Storybook Meadow design system (`DESIGN.md`).
+- **Pull designs into code:** Inspect or download updated Stitch screen HTML
+  and screenshots (`stitch get screen <id>`, `stitch download screen <id>`) and
+  translate them into Harrington's vanilla ES modules (`src/js/views/*`) and
+  Tailwind tokens (`tailwind.config.cjs`, `src/css/styles.css`), keeping
+  Australian English, `esc()` escaping, and zero runtime dependencies intact.
+- **Sync code updates back to Stitch:** After shipping UI changes, re-capture
+  affected views with synthetic data (`stitch capture browser`) and re-upload
+  (`stitch upload screen ... --route <route>`), and sync token changes with
+  `stitch upload design DESIGN.md`. Never capture or upload real family data.
+
 ## Release and pre-merge checklist
 
 Before cutting a release or merging a PR:

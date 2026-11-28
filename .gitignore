@@ -54,3 +54,12 @@ dist/
 .firebase/
 .firebase-webapp.json
 .firebaserc
+
+# Stitch CLI temporary captures & verification screenshots (keep .stitch.json, .stitch/manifest.json & DESIGN.md)
+.stitch/captures/
+.stitch/verify-capture.png
+.stitch/storage.json
+.stitch/prep-*.js
+
+# Local agent skills installed by external CLIs
+.agents/
