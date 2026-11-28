@@ -183,8 +183,8 @@ have prevented them, for HAR-36, are in [PRACTICES.md](PRACTICES.md).
 | G8 | Minor | One static 400-day cookie for every device; a lost device can be signed out only by changing the token for everyone | TB1, P5 | Superseded by Firebase Auth (`HAR-53` canceled, 28 Nov 2026) |
 | G9 | Minor | `includeNotes` is trusted as the request states it | TB4, P4 | Fixed (`HAR-54`, PR #66) |
 | G10 | Minor | Taxonomy downloaded from a moving branch with no integrity check, cached for good | TB5 | Fixed (`HAR-55`, PR #52) |
-| G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 | In Progress (`HAR-56`) |
-| G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 | In Progress (`HAR-57`) |
+| G11 | Minor | Validator keeps unknown top-level fields and lists under non-learner keys | TB6, P3 | Fixed (`HAR-56`) |
+| G12 | Minor | The first person to press Grown-ups sets the family PIN; no attempt limit | TB3, P1 | Fixed (`HAR-57`) |
 | G13 | Minor | Docker image runs as root | TB7 | Fixed (`HAR-58`, PR #55) |
 | G14 | Minor | A plain `http://` AI base URL on a public host is accepted (by code reading) | TB4, P2 | Fixed (`HAR-59`, PR #66) |
 
