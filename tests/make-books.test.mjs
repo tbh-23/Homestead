@@ -17,6 +17,8 @@ import {
   resolveFontBase,
   selectBooks,
   verifyBooks,
+  workbookFileName,
+  workbookPrintHtml,
 } from '../tools/decodable-books/make-books.mjs';
 
 const scratch = mkdtempSync(join(tmpdir(), 'harrington-make-books-test-'));
@@ -89,15 +91,30 @@ test('font resolution and print HTML share bookprint.js with capitalised names',
   const tapBooklet = bookPrintHtml(tap, { layout: 'booklet', fontBase });
   assert.doesNotMatch(tapBooklet, /window\.print/);
   assert.match(tapBooklet, /url\(file:\/\/.*andika-latin-400-normal\.woff2\)/);
-  assert.match(tapBooklet, /Words to sound out<\/h2>\s*<p class="words">a at Pat sat tap taps<\/p>/);
-  assert.match(tapBooklet, /Colour the pictures in together\./);
+  assert.match(tapBooklet, /Words to sound out<\/h2>\s*<table class="word-grid"/);
+  assert.match(tapBooklet, /aria-label="Pat"/);
+  assert.match(tapBooklet, /colour the pictures in together\./i);
 
   const pipFlat = bookPrintHtml(pip, { layout: 'flat', fontBase });
-  assert.match(pipFlat, /Words to sound out<\/h2>\s*<p class="words">[^<]*\bPip\b[^<]*\bTim\b[^<]*<\/p>/);
-  assert.doesNotMatch(pipFlat, /Words to sound out<\/h2>\s*<p class="words">[^<]*\b(pip|tim)\b/);
+  assert.match(pipFlat, /aria-label="Pip"/);
+  assert.match(pipFlat, /aria-label="Tim"/);
+  assert.doesNotMatch(pipFlat, /aria-label="pip"/);
+  assert.doesNotMatch(pipFlat, /aria-label="tim"/);
 
   const capsFlat = bookPrintHtml(caps, { layout: 'flat', fontBase });
-  assert.match(capsFlat, /Words to sound out<\/h2>\s*<p class="words">[^<]*\bPip\b[^<]*\bSam\b[^<]*\bTim\b[^<]*<\/p>/);
+  assert.match(capsFlat, /aria-label="Pip"/);
+  assert.match(capsFlat, /aria-label="Sam"/);
+  assert.match(capsFlat, /aria-label="Tim"/);
+
+  // CLI --workbook parity.
+  const wbOpts = parseArgs(['--stage', '2', '--workbook']);
+  assert.equal(wbOpts.workbook, true);
+  assert.equal(workbookFileName(2), 'fluency-workbook-sets-01-to-02-A4.pdf');
+  const wbHtml = workbookPrintHtml({ stage: 2, fontBase });
+  assert.doesNotMatch(wbHtml, /window\.print/);
+  assert.match(wbHtml, /Decodable Texts/);
+  assert.match(wbHtml, /Practise Sheet 2/);
+  assert.match(wbHtml, /Pip the cat/);
 });
 
 test('safe cleanup deletes only owned and legacy book PDFs, preserving unrelated files', () => {

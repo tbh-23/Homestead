@@ -230,3 +230,36 @@ test('print view: both layouts, sheet counts, and the name on the cover only whe
   await plain.close();
   expect(errors).toEqual([]);
 });
+
+test('A4 Fluency Workbook, Practise Sheet and A4 Story Sheet print popups respect toggles', async ({ page, gotoApp, errors }) => {
+  await gotoApp({ seed: withReading({ graphemes: SET12 }), hash: `learner/${ROWAN}/books` });
+  await expect(page.getByRole('heading', { level: 2, name: 'A4 Fluency Workbook & Practise Sheets' })).toBeVisible();
+
+  // Practise Sheet (Set 2) opens with Focus Sounds, Previous Sounds and sound-button cues.
+  const sheet = await printWindow(page, page.getByRole('button', { name: 'Print Practise Sheet (Set 2)' }));
+  await expect(sheet.locator('h1')).toHaveText('Practise Sheet 2');
+  await expect(sheet.locator('.focus-tile')).toHaveText(['i', 'm', 'f', 'c']);
+  await expect(sheet.locator('.prev-tile')).toHaveText(['s', 'a', 't', 'p']);
+  await expect(sheet.locator('.sb-dot').first()).toBeVisible();
+  await sheet.close();
+
+  // Full A4 Fluency Workbook has Cover + Set 1 Practise + 3 Set 1 stories + Set 2 Practise + 3 Set 2 stories = 9 pages.
+  const workbook = await printWindow(page, page.getByRole('button', { name: /Print A4 Workbook/ }));
+  await expect(workbook.locator('section.a4-page')).toHaveCount(9);
+  await expect(workbook.locator('.wb-owner .line')).toHaveText('Rowan Example');
+  await expect(workbook.locator('.story-draw')).toHaveCount(6);
+  await workbook.close();
+
+  // Turning off both toggles removes sound-button cues and Draw a picture boxes.
+  await page.getByLabel('Sound-button underlines').uncheck();
+  await page.getByLabel('Draw a picture box').uncheck();
+  const story = await printWindow(page, page.locator('#bank-list article', { hasText: 'Pip the cat' }).getByRole('button', { name: 'Print A4 story sheet' }));
+  await expect(story.locator('h1')).toHaveText('Pip the cat');
+  await expect(story.locator('.story-draw')).toHaveCount(0);
+  await story.close();
+
+  const sheetPlain = await printWindow(page, page.getByRole('button', { name: 'Print Practise Sheet (Set 2)' }));
+  await expect(sheetPlain.locator('.sb-dot')).toHaveCount(0);
+  await sheetPlain.close();
+  expect(errors).toEqual([]);
+});

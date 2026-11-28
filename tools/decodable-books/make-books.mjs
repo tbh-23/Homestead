@@ -24,7 +24,8 @@ import { BANK } from '../../src/js/phonics/bank.js';
 import { checkBook } from '../../src/js/phonics/decodability.js';
 import { bookFacts, bookStage } from '../../src/js/phonics/reading.js';
 import { DEFAULT_SEQUENCE, makeCode, sequenceById } from '../../src/js/phonics/sequence.js';
-import { ANDIKA_FILES, bookPrintDocument } from '../../src/js/views/bookprint.js';
+import { workbookPlan } from '../../src/js/phonics/workbook.js';
+import { ANDIKA_FILES, bookPrintDocument, workbookPrintDocument } from '../../src/js/views/bookprint.js';
 
 const require = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -33,17 +34,20 @@ export const STARTER_IDS = ['bank-tap-tap', 'bank-pip-the-cat', 'bank-caps'];
 export const PRINT_TIP = 'print double-sided, flip on the short edge, then fold and staple';
 
 const STAGE_COUNT = sequenceById(DEFAULT_SEQUENCE).stages.length;
-const USAGE = `Usage: node tools/decodable-books/make-books.mjs [--all | --stage <1..${STAGE_COUNT}>] [output-folder]`;
+const USAGE = `Usage: node tools/decodable-books/make-books.mjs [--all | --stage <1..${STAGE_COUNT}>] [--workbook] [output-folder]`;
 
 export function parseArgs(argv = [], defaultOut = DEFAULT_OUT) {
   let mode = 'starter';
   let stage = null;
+  let workbook = false;
   let outArg = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--all') {
       if (mode !== 'starter') throw new Error(`Choose either --all or --stage, not both.\n${USAGE}`);
       mode = 'all';
+    } else if (arg === '--workbook') {
+      workbook = true;
     } else if (arg === '--stage' || arg.startsWith('--stage=')) {
       if (mode !== 'starter') throw new Error(`Choose either --all or --stage, not both.\n${USAGE}`);
       const raw = arg === '--stage' ? argv[++i] : arg.slice('--stage='.length);
@@ -54,7 +58,7 @@ export function parseArgs(argv = [], defaultOut = DEFAULT_OUT) {
       mode = 'stage';
       stage = n;
     } else if (arg === '--help' || arg === '-h') {
-      return { help: true, mode, stage, outDir: resolve(defaultOut) };
+      return { help: true, mode, stage, workbook, outDir: resolve(defaultOut) };
     } else if (arg.startsWith('-')) {
       throw new Error(`Unknown option "${arg}".\n${USAGE}`);
     } else if (outArg === null) {
@@ -63,7 +67,7 @@ export function parseArgs(argv = [], defaultOut = DEFAULT_OUT) {
       throw new Error(`Unexpected extra argument "${arg}".\n${USAGE}`);
     }
   }
-  return { help: false, mode, stage, outDir: outArg ? resolve(outArg) : resolve(defaultOut) };
+  return { help: false, mode, stage, workbook, outDir: outArg ? resolve(outArg) : resolve(defaultOut) };
 }
 
 export function selectBooks({ mode = 'starter', stage = null } = {}, bank = BANK) {
@@ -158,6 +162,23 @@ export function bookPrintHtml(book, { layout = 'booklet', fontBase = resolveFont
   return bookPrintDocument(book, { layout, fontBase, autoPrint: false });
 }
 
+export function workbookFileName(stageLimit = STAGE_COUNT) {
+  return `fluency-workbook-sets-01-to-${String(stageLimit).padStart(2, '0')}-A4.pdf`;
+}
+
+export function workbookPrintHtml({ stage = null, fontBase = resolveFontBase() } = {}, bank = BANK) {
+  const seq = sequenceById(DEFAULT_SEQUENCE);
+  const upTo = stage || seq.stages.length;
+  const stages = seq.stages.slice(0, upTo);
+  const reading = {
+    sequence: DEFAULT_SEQUENCE,
+    graphemes: stages.flatMap((s) => s.graphemes),
+    clusters: stages.some((s) => s.clusters),
+  };
+  const plan = workbookPlan(reading, { bank, maxStage: upTo });
+  return workbookPrintDocument(plan, { fontBase, autoPrint: false });
+}
+
 const BROWSERS = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -235,6 +256,19 @@ export async function runCli(argv = process.argv.slice(2), log = console.log) {
         { path: join(opts.outDir, bookletFileName(book)), width: '297mm', height: '210mm', printBackground: true, preferCSSPageSize: true },
       );
       log(`${book.title}: decodable, words: ${facts.words.join(' ')}`);
+    }
+    if (opts.workbook) {
+      const limit = opts.mode === 'stage' ? opts.stage : opts.mode === 'starter' ? 2 : STAGE_COUNT;
+      const wbName = workbookFileName(limit);
+      rmSync(join(opts.outDir, wbName), { force: true });
+      await renderPdf(
+        page,
+        scratchDir,
+        'fluency-workbook.html',
+        workbookPrintHtml({ stage: limit, fontBase }),
+        { path: join(opts.outDir, wbName), width: '210mm', height: '297mm', printBackground: true, preferCSSPageSize: true },
+      );
+      log(`Fluency Workbook (A4, Sets 1–${limit}): ${wbName}`);
     }
   } finally {
     rmSync(scratchDir, { recursive: true, force: true });

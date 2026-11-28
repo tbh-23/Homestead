@@ -1,29 +1,39 @@
-// Books for one learner (HAR-45), `#learner/<id>/books`: the built-in books
-// within their known code (newest sounds first), the ones a few sounds
-// further on (muted, with what they need), "Make a new book" from the word
-// bank, and the learner's library of saved books. Everything works without
-// an AI provider and nothing is sent anywhere; the learner's name only
-// reaches the printed cover, when the parent asked for it.
+// Books for one learner (HAR-45, HAR-70), `#learner/<id>/books`: the featured
+// A4 Fluency Workbook & Practise Sheets card, the built-in books within their
+// known code (newest sounds first), the ones a few sounds further on (muted,
+// with what they need), "Make a new book" from the word bank, and the learner's
+// library of saved books. Everything works without an AI provider and nothing
+// is sent anywhere; the learner's name only reaches a printed cover when the
+// parent asked for it.
 import * as store from '../store.js';
 import { el, esc, fmtDate, keepFocus, toast } from '../ui.js';
 import { BANK } from '../phonics/bank.js';
 import { generateBook } from '../phonics/generator.js';
 import { renderScene } from '../phonics/pictures.js';
 import { bookFacts, booksFor, defaultFocus, describeMissing, inTeachingOrder, knownCode, readingSummary, stageOf } from '../phonics/reading.js';
-import { printBook } from './bookprint.js';
+import { practiseSheetData, workbookPlan } from '../phonics/workbook.js';
+import { printBook, printPractiseSheet, printStorySheet, printWorkbook } from './bookprint.js';
 
 const CARD = 'bg-paper-card border border-paper-line rounded-2xl p-4';
 const BTN = 'inline-flex items-center justify-center gap-1.5 h-11 px-3.5 rounded-full text-sm font-medium';
 const BTN_SOFT = `${BTN} bg-paper border border-paper-line text-ink`;
+const BTN_TINT = `${BTN} bg-brand-light border border-brand/30 text-brand-dark`;
 
 // The book being made, per learner, for this visit: { focus, pages, seed }.
 const drafts = new Map();
+// Print workbook UI toggles per learner, for this visit.
+const printOpts = new Map();
+
+const optsFor = (studentId) => {
+  if (!printOpts.has(studentId)) printOpts.set(studentId, { soundButtons: true, drawBox: true });
+  return printOpts.get(studentId);
+};
 
 const ownerOf = (student, reading) => (reading.prefs.nameOnCover ? student.name : '');
 // "Sounds: ck sh", or for a book about adjacent consonants, that.
 const soundsOf = (book) => bookFacts(book).coverLine;
 
-function bookCard(book, { student, reading, actions = ['booklet', 'flat', 'save'], muted = '', date = null, onRemove = null }) {
+function bookCard(book, { student, reading, opts, actions = ['story-sheet', 'booklet', 'flat', 'save'], muted = '', date = null, onRemove = null }) {
   const card = el(`<article class="${CARD} ${muted ? 'opacity-60' : ''}" data-book="${esc(book.id || '')}">
     <div class="flex gap-3 items-start">
       <div class="w-24 sm:w-28 shrink-0 rounded-lg border border-paper-line bg-white overflow-hidden">${renderScene(book.cover || [])}</div>
@@ -36,12 +46,18 @@ function bookCard(book, { student, reading, actions = ['booklet', 'flat', 'save'
     <div class="actions flex flex-wrap gap-2 mt-3 empty:hidden"></div>
   </article>`);
   const bar = card.querySelector('.actions');
-  const add = (label, icon, fn) => {
-    const b = el(`<button class="${BTN_SOFT}"><i data-lucide="${esc(icon)}" class="w-4 h-4"></i>${esc(label)}</button>`);
+  const add = (label, icon, fn, cls = BTN_SOFT) => {
+    const b = el(`<button class="${cls}"><i data-lucide="${esc(icon)}" class="w-4 h-4"></i>${esc(label)}</button>`);
     b.onclick = fn;
     bar.appendChild(b);
   };
-  const print = (layout) => printBook(book, { layout, ownerName: ownerOf(student, reading) });
+  const print = (layout) => printBook(book, {
+    layout,
+    ownerName: ownerOf(student, reading),
+    soundButtons: opts.soundButtons,
+    drawBox: opts.drawBox,
+  });
+  if (actions.includes('story-sheet')) add('Print A4 story sheet', 'file-text', () => printStorySheet(book, { drawBox: opts.drawBox }), BTN_TINT);
   if (actions.includes('booklet')) add('Print booklet', 'printer', () => print('booklet'));
   if (actions.includes('flat')) add('Print flat', 'file-text', () => print('flat'));
   if (actions.includes('print')) add('Print', 'printer', () => print(reading.prefs.layout));
@@ -55,9 +71,70 @@ function saveBook(student, book) {
   else toast('The library is full; remove a book first', 'error');
 }
 
+function workbookSection(student, reading, opts) {
+  const stage = stageOf(reading);
+  const plan = workbookPlan(reading, { bank: BANK });
+  const sheetStage = Math.max(1, stage);
+  const sheet = practiseSheetData(reading, { stageNumber: sheetStage, bank: BANK });
+  const canPrintWorkbook = plan.items.length > 0;
+  const pageTotal = canPrintWorkbook ? plan.items.length + 1 : 0;
+
+  const section = el(`<section id="workbook-section" aria-labelledby="workbook-h" class="mb-8">
+    <div class="${CARD} p-5">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div class="min-w-0 max-w-xl">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-600 uppercase tracking-wide bg-brand-light text-brand-dark mb-2">
+            <i data-lucide="book-open" class="w-3.5 h-3.5"></i>A4 printable workbook &amp; sheets
+          </span>
+          <h2 id="workbook-h" class="font-display text-xl sm:text-2xl font-600 leading-snug">A4 Fluency Workbook &amp; Practise Sheets</h2>
+          <p class="text-sm text-ink-soft mt-1.5 leading-relaxed">Print PhOrMeS-style practise sheets (Focus &amp; Previous Sounds boxes, Decodable Words grids, Sound it. Blend it. guide) paired with single-page decodable stories and Draw a picture boxes.</p>
+          ${!canPrintWorkbook ? `<p class="text-xs text-ink-soft mt-2">Tick at least set 1 (s a t p) on the reading setup to build a full fluency workbook.</p>` : ''}
+        </div>
+        <div class="flex flex-wrap gap-2 shrink-0">
+          <button id="print-workbook" class="${BTN} bg-brand text-white disabled:opacity-50" ${canPrintWorkbook ? '' : 'disabled'}>
+            <i data-lucide="book-open" class="w-4 h-4"></i>Print A4 Workbook${pageTotal ? ` (${pageTotal}p)` : ''}
+          </button>
+          <button id="print-practise-sheet" class="${BTN_SOFT}">
+            <i data-lucide="file-text" class="w-4 h-4"></i>Print Practise Sheet (Set ${sheetStage})
+          </button>
+        </div>
+      </div>
+      <div class="mt-4 pt-3.5 border-t border-paper-line flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-5">
+          <label class="inline-flex items-center gap-2.5 h-11 cursor-pointer text-sm font-medium text-ink">
+            <input id="opt-sound-buttons" type="checkbox" class="w-4 h-4 accent-[#3f6b3b]" ${opts.soundButtons ? 'checked' : ''}>
+            <span>Sound-button underlines</span>
+          </label>
+          <label class="inline-flex items-center gap-2.5 h-11 cursor-pointer text-sm font-medium text-ink">
+            <input id="opt-draw-box" type="checkbox" class="w-4 h-4 accent-[#3f6b3b]" ${opts.drawBox ? 'checked' : ''}>
+            <span>Draw a picture box</span>
+          </label>
+        </div>
+        <p class="text-xs text-ink-faint">Standard A4 portrait · pure B&amp;W line art · ink-friendly</p>
+      </div>
+    </div>
+  </section>`);
+
+  section.querySelector('#opt-sound-buttons').onchange = (e) => { opts.soundButtons = e.target.checked; redraw(); };
+  section.querySelector('#opt-draw-box').onchange = (e) => { opts.drawBox = e.target.checked; redraw(); };
+  section.querySelector('#print-workbook').onclick = () => {
+    if (!canPrintWorkbook) return;
+    printWorkbook(plan, {
+      ownerName: ownerOf(student, reading),
+      soundButtons: opts.soundButtons,
+      drawBox: opts.drawBox,
+    });
+  };
+  section.querySelector('#print-practise-sheet').onclick = () => {
+    printPractiseSheet(sheet, { soundButtons: opts.soundButtons });
+  };
+  return section;
+}
+
 export function renderBooks(student, { navigate }) {
   const reading = store.readingFor(student.id);
   const code = knownCode(reading);
+  const opts = optsFor(student.id);
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
   root.appendChild(el(`<div class="mb-5">
     <p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1">Parent view · decodable books</p>
@@ -67,6 +144,9 @@ export function renderBooks(student, { navigate }) {
   </div>`));
   root.querySelector('#to-setup').onclick = () => navigate('learner', { id: student.id });
 
+  // ---- A4 fluency workbook & practise sheets ----
+  root.appendChild(workbookSection(student, reading, opts));
+
   // ---- the bank ----
   const { within, beyond } = booksFor(code, BANK);
   const bank = el(`<section aria-labelledby="bank-h" class="mb-8"><h2 id="bank-h" class="font-display text-xl font-600 mb-3">Ready to read</h2>
@@ -75,17 +155,17 @@ export function renderBooks(student, { navigate }) {
   if (!within.length) {
     list.appendChild(el(`<p class="text-sm text-ink-soft md:col-span-2 [overflow-wrap:anywhere]">No book uses only the sounds ticked so far. Tick the sounds ${esc(student.name)} knows on the reading setup, or start with set 1: s a t p.</p>`));
   }
-  for (const book of within) list.appendChild(bookCard(book, { student, reading }));
+  for (const book of within) list.appendChild(bookCard(book, { student, reading, opts }));
   if (beyond.length) {
     bank.appendChild(el(`<h3 class="text-sm font-600 text-ink-soft mt-5 mb-2">A little further on</h3>`));
     const further = el(`<div id="beyond-list" class="grid gap-3 md:grid-cols-2"></div>`);
-    for (const { book, missing } of beyond) further.appendChild(bookCard(book, { student, reading, actions: [], muted: describeMissing(missing) }));
+    for (const { book, missing } of beyond) further.appendChild(bookCard(book, { student, reading, opts, actions: [], muted: describeMissing(missing) }));
     bank.appendChild(further);
   }
   root.appendChild(bank);
 
   // ---- make a new book ----
-  root.appendChild(makeSection(student, reading, code));
+  root.appendChild(makeSection(student, reading, code, opts));
 
   // ---- the library ----
   const lib = el(`<section aria-labelledby="lib-h" class="mb-8"><h2 id="lib-h" class="font-display text-xl font-600 mb-3">Library</h2>
@@ -94,7 +174,7 @@ export function renderBooks(student, { navigate }) {
   if (!reading.library.length) libList.appendChild(el(`<p class="text-sm text-ink-soft md:col-span-2">Saved books appear here, to print again.</p>`));
   for (const entry of reading.library) {
     libList.appendChild(bookCard(entry.book, {
-      student, reading, actions: ['print'], date: entry.savedAt,
+      student, reading, opts, actions: ['print', 'story-sheet'], date: entry.savedAt,
       onRemove: () => { store.removeFromLibrary(student.id, entry.id); toast(`Removed “${entry.book.title}”`); },
     }));
   }
@@ -105,7 +185,7 @@ export function renderBooks(student, { navigate }) {
 // The view re-renders on every change; the focus stays on the control used.
 const redraw = () => { const restore = keepFocus(); store.redraw(); restore(); };
 
-function makeSection(student, reading, code) {
+function makeSection(student, reading, code, opts) {
   const fallback = defaultFocus(reading);
   const draft = drafts.get(student.id) || { focus: fallback.graphemes, clusters: fallback.clusters, pages: 6, seed: 1, made: false };
   // Until the parent picks sounds the focus follows the ticks (the newest
@@ -158,7 +238,7 @@ function makeSection(student, reading, code) {
         : 'Not enough sounds to write a story yet. Tick a few more on the reading setup (set 1 is enough to start).';
       out.appendChild(el(`<p class="text-sm text-ink-soft">${esc(msg)}</p>`));
     } else {
-      const card = bookCard(book, { student, reading, actions: ['booklet', 'flat', 'save'] });
+      const card = bookCard(book, { student, reading, opts, actions: ['story-sheet', 'booklet', 'flat', 'save'] });
       card.querySelector('.actions').before(el(`<ol class="made-pages text-sm text-ink mt-2 space-y-0.5 list-decimal pl-5">${book.pages.map(p => `<li>${esc(p.text)}</li>`).join('')}</ol>`));
       out.appendChild(card);
     }

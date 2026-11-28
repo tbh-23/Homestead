@@ -606,8 +606,9 @@ export function renderItem(item) {
  * the library cannot draw (a book saved by a newer version, or a hand-edited
  * file) is left out rather than breaking the page it is on.
  */
-export function renderScene(scene = [], { label = '' } = {}) {
+export function renderScene(scene = [], { label = '', ground = true } = {}) {
   const items = (Array.isArray(scene) ? scene : []).filter((item) => isPictureKind(item?.kind)).map(renderItem).join('');
   const aria = label ? ` role="img" aria-label="${String(label).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])}"` : ' aria-hidden="true"';
-  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg"${aria}><path d="M8 ${GROUND_Y} H392" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>${items}</svg>`;
+  const floor = ground ? `<path d="M8 ${GROUND_Y} H392" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>` : '';
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg"${aria}>${floor}${items}</svg>`;
 }
