@@ -29,14 +29,14 @@ export function renderRecords(params, { navigate }) {
   const active = store.activeStudent();
   const root = el(`<div class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
 
-  const header = el(`<div class="flex items-start justify-between gap-3 mb-5">
-    <div>
+  const header = el(`<div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+    <div class="min-w-0 flex-1 basis-52">
       <h1 class="font-display text-2xl sm:text-3xl font-600">Records</h1>
-      <p class="text-ink-soft text-sm mt-1">Observations, questions and discussions for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span>.</p>
+      <p class="text-ink-soft text-sm mt-1">Observations, questions and discussions for <span class="font-600 text-ink [overflow-wrap:anywhere]">${esc(active?.name || 'your student')}</span>.</p>
     </div>
-    <div class="shrink-0 flex gap-2">
-      <button id="rec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4"></i>Record</button>
-      <button id="new" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="plus" class="w-4 h-4"></i>New record</button>
+    <div class="shrink-0 flex flex-wrap gap-2 max-w-full">
+      <button id="rec" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#a4473a] hover:bg-[#86372c] text-white text-sm font-medium transition-colors"><i data-lucide="mic" class="w-4 h-4 shrink-0"></i>Record</button>
+      <button id="new" class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors"><i data-lucide="plus" class="w-4 h-4 shrink-0"></i>New record</button>
     </div>
   </div>`);
   header.querySelector('#new').onclick = () => openRecordForm(active?.id);
@@ -170,20 +170,20 @@ function coverageNames(r) {
 function recordCard(r, student, d, navigate) {
   const tm = TYPES[r.type] || { icon: 'sticky-note', label: 'Note', color: '#6f665a' };
   const topic = r.topicId ? d.byId.get(r.topicId) : null;
-  const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4">
-    <div class="flex items-center gap-2 text-xs mb-1.5">
+  const card = el(`<div class="bg-paper-card border border-paper-line rounded-2xl p-4 min-w-0">
+    <div class="flex flex-wrap items-center gap-2 text-xs mb-1.5">
       <span class="flex items-center gap-1 font-600 px-2 py-0.5 rounded-full" style="color:${esc(tm.color)};background:${esc(tm.color)}14"><i data-lucide="${esc(tm.icon)}" class="w-3.5 h-3.5"></i>${esc(tm.label)}</span>
       ${r.observed ? '<span class="observed-chip flex items-center gap-1 font-medium px-2 py-0.5 rounded-full text-[#2f6285] bg-[#2f6285]/10"><i data-lucide="eye" class="w-3.5 h-3.5"></i>observed</span>' : ''}
       ${r.rating ? `<span class="text-[#8a6412]">${ratingStars(r.rating)}</span>` : ''}
       <span class="text-ink-faint ml-auto">${esc(fmtDateTime(r.createdAt))}</span>
       <button class="del text-ink-faint hover:text-[#a4473a] w-11 h-11 -my-[13px] -mr-[13px] flex items-center justify-center shrink-0 lg:w-auto lg:h-auto lg:m-0 lg:p-0.5" title="Delete record" aria-label="Delete record ${esc(r.title || tm.label)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
     </div>
-    ${r.title ? `<p class="font-600">${esc(r.title)}</p>` : ''}
-    ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-center gap-1.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>Coverage: ${coverageNames(r).map(esc).join(' · ')}</p>` : ''}
-    ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">${esc(r.note)}</p>` : ''}
-    ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
-    ${!topic && r.topicId && !isCurrentTopic(r.topicId) ? `<p class="mt-2.5 inline-flex items-center gap-1.5 text-xs text-ink-faint"><i data-lucide="archive" class="w-3.5 h-3.5"></i>${esc(r.topicName || r.topicId)} · archived topic</p>` : ''}
-    ${topic ? `<button class="topic mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-brand-dark"><i data-lucide="${esc(subjectMeta(topic.subject)?.icon)}" class="w-3.5 h-3.5"></i>${esc(topic.name)}<i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>` : ''}
+    ${r.title ? `<p class="font-600 break-words [overflow-wrap:anywhere]">${esc(r.title)}</p>` : ''}
+    ${coverageNames(r).length ? `<p class="text-xs font-600 text-brand-dark mb-1 flex items-start gap-1.5 min-w-0"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i><span class="min-w-0 break-words">Coverage: ${coverageNames(r).map(esc).join(' · ')}</span></p>` : ''}
+    ${r.note ? `<p class="text-sm text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${esc(r.note)}</p>` : ''}
+    ${r.transcript ? `<details class="mt-2 group"><summary class="text-xs text-ink-faint cursor-pointer select-none flex items-center gap-1 list-none"><i data-lucide="chevron-right" class="w-3.5 h-3.5 transition-transform group-open:rotate-90"></i>Transcript</summary><p class="text-sm text-ink-soft mt-1.5 leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] bg-paper border border-paper-line rounded-lg p-2.5">${esc(r.transcript)}</p></details>` : ''}
+    ${!topic && r.topicId && !isCurrentTopic(r.topicId) ? `<p class="mt-2.5 inline-flex max-w-full items-center gap-1.5 text-xs text-ink-faint break-words"><i data-lucide="archive" class="w-3.5 h-3.5 shrink-0"></i><span>${esc(r.topicName || r.topicId)} · archived topic</span></p>` : ''}
+    ${topic ? `<button class="topic mt-2.5 inline-flex max-w-full items-center gap-1.5 text-left text-xs font-medium text-brand-dark"><i data-lucide="${esc(subjectMeta(topic.subject)?.icon)}" class="w-3.5 h-3.5 shrink-0"></i><span class="min-w-0 break-words">${esc(topic.name)}</span><i data-lucide="chevron-right" class="w-3.5 h-3.5 shrink-0"></i></button>` : ''}
   </div>`);
   if (r.audioPath) card.appendChild(audioPlayer(r.audioPath, r.duration));
 
@@ -277,7 +277,7 @@ function openAnalysis(record, student, topic, includeNotes = false) {
   stage.appendChild(el(`<div class="text-center py-8">
     <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
     <p class="text-sm font-600">Analysing the discussion${includeNotes ? ' (notes included)' : ''}\u2026</p>
-    <p class="text-xs text-ink-faint mt-1">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
+    <p class="text-xs text-ink-faint mt-1 [overflow-wrap:anywhere]">Looking at what ${esc(student.name)} understands and where they're stuck.</p>
   </div>`));
   refreshIcons();
 

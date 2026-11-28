@@ -1,6 +1,6 @@
 import * as store from '../store.js';
 import { getData } from '../data.js';
-import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations } from '../ui.js';
+import { el, esc, initials, openModal, refreshIcons, toast, holdConfirmations, clearConfirmations } from '../ui.js';
 import { countLabel } from '../format.js';
 import { notificationBell } from './notifications.js';
 import { openGuide } from './guide.js';
@@ -77,12 +77,12 @@ export function renderShell({ route, navigate, content }) {
 
   // Top bar (mobile)
   const top = el(`
-    <header class="lg:hidden sticky top-0 z-40 bg-paper-deep px-4 py-2.5 flex items-center justify-between">
-      <div class="flex items-center gap-2">
+    <header class="lg:hidden sticky top-0 z-40 bg-paper-deep px-4 py-2.5 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         ${meadowLogo(30)}
-        <span class="font-display text-lg font-600">Harrington</span>
+        <span class="font-display text-lg font-600 truncate">Harrington</span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <button id="mob-guide" class="w-9 h-9 rounded-lg border border-paper-line bg-paper-card hover:border-brand/40 transition-colors flex items-center justify-center" title="Guide" aria-label="Open the guide"><i data-lucide="book-open" class="w-4.5 h-4.5 text-ink-soft"></i></button>
         <span id="mob-bell"></span>
         <div id="mob-student"></div>
@@ -104,7 +104,7 @@ export function renderShell({ route, navigate, content }) {
 
   const main = el(`<div class="flex-1 min-w-0 flex flex-col"></div>`);
   main.appendChild(top);
-  const scroll = el(`<div class="flex-1 pb-24 lg:pb-0"></div>`);
+  const scroll = el(`<div class="flex-1 min-w-0 pb-24 lg:pb-0"></div>`);
   if (store.isReadOnly()) {
     // One banner: drop one shown above #app before the shell existed.
     document.querySelectorAll('.read-only-banner').forEach(b => b.remove());
@@ -533,7 +533,7 @@ function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 
   if (!learners.length) list.appendChild(el(`<p class="text-sm text-ink-faint">The file has no learners.</p>`));
   learners.forEach(l => {
     list.appendChild(el(`<div class="flex items-center justify-between gap-3 px-3 py-2 rounded-2xl bg-paper">
-      <span class="text-sm font-600 truncate">${esc(l.name)}</span>
+      <span class="text-sm font-600 truncate min-w-0">${esc(l.name)}</span>
       <span class="text-xs text-ink-faint shrink-0">${countLabel(l.topics, 'topic')} · ${countLabel(l.records, 'record')} · ${countLabel(l.tests, 'test')}</span>
     </div>`));
   });
@@ -578,6 +578,7 @@ function reportBlockedWrite(automatic = false) {
   // A write the app made while rendering is not the parent's: no toast.
   if (automatic) return;
   holdConfirmations();
+  clearConfirmations();
   // One toast per burst of blocked writes (a click can persist twice).
   if (Date.now() - lastNotSaved < 1500) return;
   lastNotSaved = Date.now();
@@ -621,8 +622,8 @@ function showConflict({ discarded = [], retry = null } = {}) {
   conflictToast?.remove();
   const lost = store.describeDiscarded(discarded, topicName);
   const msg = lost ? `Another device saved changes first. Not kept here: ${lost}.` : 'Another device saved changes. Reloaded the latest.';
-  const node = el(`<div role="alert" class="px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
-    <span>${esc(msg)}</span>
+  const node = el(`<div role="alert" class="max-w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-ink text-white shadow-lg flex items-center gap-3">
+    <span class="min-w-0 [overflow-wrap:anywhere]">${esc(msg)}</span>
     ${retry ? `<button class="${TOAST_BUTTON}">Try again</button>` : ''}
   </div>`);
   conflictToast = node;
@@ -653,8 +654,8 @@ function showRetry(reason = null) {
   if (!root) return;
   retryToast?.remove();
   retryReason = reason;
-  retryToast = el(`<div role="alert" class="px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
-    <span class="py-1.5">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
+  retryToast = el(`<div role="alert" class="max-w-full px-4 py-1 rounded-lg text-sm font-medium bg-[#a4473a] text-white shadow-lg flex items-center gap-3">
+    <span class="py-1.5 min-w-0 [overflow-wrap:anywhere]">${reason ? `Harrington refused these changes: ${esc(reason)}` : 'Could not save changes to Harrington.'}</span>
     ${reason ? `<button class="dismiss ${TOAST_BUTTON}">Dismiss</button>` : `<button class="retry ${TOAST_BUTTON}">Retry</button>`}
   </div>`);
   retryToast.querySelector('button').onclick = () => {
@@ -670,13 +671,14 @@ store.onSaveStatus((event) => {
   const { type, error, automatic } = event;
   if (typeof document === 'undefined') return;
   if (type === 'saved') clearSaveProblems();
-  else if (type === 'conflict') { clearSaveProblems(); showConflict(event); }
-  else if (type === 'too-large') showTooLarge();
-  else if (type === 'failed') showRetry();
+  else if (type === 'conflict') { clearSaveProblems(); clearConfirmations(); showConflict(event); }
+  else if (type === 'too-large') { clearConfirmations(); showTooLarge(); }
+  else if (type === 'failed') { clearConfirmations(); showRetry(); }
   else if (type === 'rejected') {
     // The save the action triggered was refused: its confirmation must not
-    // say otherwise (it is shown later in the same task).
+    // say otherwise (it is shown later in the same task, or cleared if async).
     holdConfirmations();
+    clearConfirmations();
     showRetry(error?.message || null);
   }
   else if (type === 'read-only') reportBlockedWrite(automatic);

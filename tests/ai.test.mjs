@@ -18,12 +18,13 @@ const TAXONOMY = {
   ] },
   'dependencies.json': { dependencies: [] },
 };
+let nextRawReply = undefined;
 globalThis.fetch = async (path, options = {}) => {
   const url = String(path);
   const json = (body, ok = true) => ({ ok, status: ok ? 200 : 404, headers: new Headers({ ETag: '"v1"' }), json: async () => body });
   if (url === '/api/ai') {
     sent.push(JSON.parse(options.body));
-    return json({ content: nextCompletion ?? COMPLETION });
+    return json(nextRawReply !== undefined ? nextRawReply : { content: nextCompletion ?? COMPLETION });
   }
   if (url.startsWith('/api/taxonomy/')) {
     const body = TAXONOMY[url.slice('/api/taxonomy/'.length)];
@@ -33,6 +34,7 @@ globalThis.fetch = async (path, options = {}) => {
 };
 
 const ai = await import('../src/js/ai.js');
+const { explainAiError } = await import('../src/js/ai-status.js');
 const store = await import('../src/js/store.js');
 const { loadTaxonomy } = await import('../src/js/data.js');
 const { AI_CAPABILITIES } = await import('../src/js/ai-capabilities.js');
@@ -408,5 +410,27 @@ test('a mastery test keeps positive points and gives anything else 1, so a score
     assert.deepEqual(test.questions.map((q) => q.points), [0.5, 1, 1, 1]);
   } finally {
     nextCompletion = null;
+  }
+});
+
+test('aiExplain and aiQuiz reject empty, whitespace, null, or non-string AI answers instead of printing [object Object] (HAR-42)', async () => {
+  for (const badReply of [{ content: null }, { content: '' }, { content: '   \n\t ' }, {}, { content: { unexpected: true } }, null]) {
+    nextRawReply = badReply;
+    try {
+      for (const fn of [ai.aiExplain, ai.aiQuiz]) {
+        await assert.rejects(
+          () => fn(topic),
+          (err) => {
+            const explained = explainAiError(err);
+            assert.equal(explained.kind, 'provider');
+            assert.match(explained.message, /Try again/);
+            assert.doesNotMatch(err.message, /\[object Object\]/);
+            return true;
+          },
+        );
+      }
+    } finally {
+      nextRawReply = undefined;
+    }
   }
 });

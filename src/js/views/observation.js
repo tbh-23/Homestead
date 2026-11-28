@@ -27,9 +27,9 @@ export function openObservation(topic, student = store.activeStudent()) {
   const body = el(`<div class="p-5">
     <div class="flex items-start gap-3 mb-4">
       <span class="w-10 h-10 rounded-xl bg-brand-light flex items-center justify-center shrink-0"><i data-lucide="eye" class="w-5 h-5 text-brand-dark"></i></span>
-      <div>
+      <div class="min-w-0">
         <h3 class="font-display text-lg font-600 leading-tight">Check mastery by observation</h3>
-        <p class="text-sm text-ink-soft mt-0.5">${esc(topic.name)}. Watch ${esc(student.name)} at work or ask the question below, then tick what you saw. No quiz and no AI.</p>
+        <p class="text-sm text-ink-soft mt-0.5 [overflow-wrap:anywhere]">${esc(topic.name)}. Watch ${esc(student.name)} at work or ask the question below, then tick what you saw. No quiz and no AI.</p>
       </div>
     </div>
     ${queued ? `<p class="text-xs text-[#8a6412] bg-[#fbecc4] rounded-lg px-3 py-2 mb-3">You marked this “Unsure” in the level-set workbook.</p>` : ''}
@@ -39,7 +39,7 @@ export function openObservation(topic, student = store.activeStudent()) {
     </div>` : ''}
     <div id="ob-guide-q"></div>
     <fieldset>
-      <legend class="text-sm font-medium mb-2">What did you see ${esc(student.name)} do?</legend>
+      <legend class="text-sm font-medium mb-2 [overflow-wrap:anywhere]">What did you see ${esc(student.name)} do?</legend>
       <div class="space-y-2" id="ob-items">${items.map((text, i) => `<label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-paper-line bg-paper cursor-pointer hover:border-brand/40">
         <input type="checkbox" class="mt-0.5 accent-[#3f6b3b]" data-i="${esc(i)}" />
         <span class="text-sm text-ink leading-snug">${esc(text)}</span>

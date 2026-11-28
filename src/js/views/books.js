@@ -61,7 +61,7 @@ export function renderBooks(student, { navigate }) {
   const root = el(`<div class="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 fade-up"></div>`);
   root.appendChild(el(`<div class="mb-5">
     <p class="text-xs font-600 uppercase tracking-wide text-ink-faint mb-1">Parent view · decodable books</p>
-    <h1 class="font-display text-2xl sm:text-3xl font-600">Books for ${esc(student.name)}</h1>
+    <h1 class="font-display text-2xl sm:text-3xl font-600 [overflow-wrap:anywhere]">Books for ${esc(student.name)}</h1>
     <p id="books-stage" class="text-sm text-ink mt-1">${esc(readingSummary(reading))}
       <button id="to-setup" class="text-brand-dark font-medium underline underline-offset-2 h-11">Change the sounds</button></p>
   </div>`));
@@ -73,7 +73,7 @@ export function renderBooks(student, { navigate }) {
     <div id="bank-list" class="grid gap-3 md:grid-cols-2"></div></section>`);
   const list = bank.querySelector('#bank-list');
   if (!within.length) {
-    list.appendChild(el(`<p class="text-sm text-ink-soft md:col-span-2">No book uses only the sounds ticked so far. Tick the sounds ${esc(student.name)} knows on the reading setup, or start with set 1: s a t p.</p>`));
+    list.appendChild(el(`<p class="text-sm text-ink-soft md:col-span-2 [overflow-wrap:anywhere]">No book uses only the sounds ticked so far. Tick the sounds ${esc(student.name)} knows on the reading setup, or start with set 1: s a t p.</p>`));
   }
   for (const book of within) list.appendChild(bookCard(book, { student, reading }));
   if (beyond.length) {
@@ -116,7 +116,7 @@ function makeSection(student, reading, code) {
   const known = inTeachingOrder([...code.graphemes]);
   const section = el(`<section aria-labelledby="make-h" class="mb-8">
     <h2 id="make-h" class="font-display text-xl font-600 mb-1">Make a new book</h2>
-    <p class="text-sm text-ink-soft mb-3">A new story from the sounds ${esc(student.name)} knows. Pick the sounds to practise; Shuffle writes another one. No AI: every word is checked before you see it.</p>
+    <p class="text-sm text-ink-soft mb-3 [overflow-wrap:anywhere]">A new story from the sounds ${esc(student.name)} knows. Pick the sounds to practise; Shuffle writes another one. No AI: every word is checked before you see it.</p>
     <div class="${CARD} space-y-3">
       <fieldset><legend class="text-xs text-ink-faint mb-1.5">Sounds to practise</legend><div id="focus" class="flex flex-wrap gap-2"></div></fieldset>
       <fieldset><legend class="text-xs text-ink-faint mb-1.5">Length</legend><div class="flex gap-4">

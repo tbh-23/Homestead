@@ -14,8 +14,11 @@ import { activityIdeas, gameIdeas } from '../resources.js';
 import { MASTERY, isUnlocked } from '../mastery.js';
 import { growthIcon, stageForStatus } from '../meadow.js';
 
+export const EXTRAS_CAP = 10;
+
 let viewMonth = null;   // Date on the 1st of the shown month
 let selectedKey = null; // yyyy-mm-dd
+let expandedExtrasKey = null; // `${studentId}|${dateKey}` when "Show all" was clicked
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -26,7 +29,7 @@ export function renderCalendar(params, { navigate }) {
 
   root.appendChild(el(`<div class="mb-4">
     <h1 class="font-display text-2xl sm:text-3xl font-600">Daily Calendar</h1>
-    <p class="text-ink-soft text-sm mt-1">A day-by-day learning track for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span> — with refreshers and extras each day.</p>
+    <p class="text-ink-soft text-sm mt-1 [overflow-wrap:anywhere]">A day-by-day learning track for <span class="font-600 text-ink">${esc(active?.name || 'your student')}</span> — with refreshers and extras each day.</p>
   </div>`));
 
   if (!active) { root.appendChild(el(`<p class="text-ink-soft">Add a student to see their calendar.</p>`)); return root; }
@@ -137,7 +140,7 @@ function monthPanel(active, today, navigate) {
     const topicList = topics.slice(0, 3).map(t => `<span class="hidden sm:flex items-center gap-1 text-[10px] leading-tight text-ink-soft truncate"><span class="w-1 h-1 rounded-full shrink-0" style="background:${subjectMeta(t.subject).color}"></span><span class="truncate">${esc(t.name)}</span></span>`).join('');
     const moreCount = topics.length - 3;
 
-    const cell = el(`<button class="relative min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : rest ? 'bg-paper/60' : 'bg-paper-card'}" ${rest ? `data-rest="${rest.kind}"` : ''}>
+    const cell = el(`<button class="relative min-w-0 min-h-[64px] sm:min-h-[104px] rounded-xl border p-1.5 sm:p-2 flex flex-col text-left transition-colors ${isSel ? 'border-brand bg-brand-light/50' : 'border-paper-line hover:border-ink-faint/40'} ${dayDone ? 'bg-brand-light/40' : rest ? 'bg-paper/60' : 'bg-paper-card'}" ${rest ? `data-rest="${rest.kind}"` : ''}>
       <span class="flex items-center justify-between">
         <span class="text-xs font-600 shrink-0 ${isToday ? 'w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center' : (rest ? 'text-ink-faint' : 'text-ink')}">${day}</span>
         <span class="flex items-center gap-1">
@@ -177,10 +180,10 @@ function dayPanel(active, navigate) {
   const byId = getData().byId;
   const extras = store.extrasOn(active.id, selectedKey).filter(x => x.topicId && byId.has(x.topicId));
 
-  const card = el(`<div data-day-panel class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5"></div>`);
+  const card = el(`<div data-day-panel class="bg-paper-card border border-paper-line rounded-2xl p-5 space-y-5 min-w-0"></div>`);
   const control = doneControl(rest, done);
   const head = el(`<div class="flex items-start justify-between gap-2">
-    <div>
+    <div class="min-w-0">
       <p class="text-xs text-ink-faint">${rest ? (rest.kind === 'break' ? `Break${rest.label ? ' · ' + esc(rest.label) : ''}` : 'Rest day') : inTrack ? 'Home learning day' : 'Outside the track'}</p>
       <h2 class="font-display text-xl font-600">${dateLabel}</h2>
     </div>
@@ -213,11 +216,12 @@ function dayPanel(active, navigate) {
     <div id="exlist" class="space-y-2"></div>
   </div>`);
   const exList = exBlock.querySelector('#exlist');
-  if (extras.length === 0) {
-    exList.appendChild(el(`<p class="text-sm text-ink-faint">Nothing extra added. Use “Add” to schedule more practice, a re-test, or a challenge for this day.</p>`));
-  } else {
-    extras.forEach(x => exList.appendChild(extraRow(x, active, navigate)));
-  }
+  const dayKeyToken = `${active.id}|${selectedKey}`;
+  renderDayExtras(exList, extras, {
+    expanded: expandedExtrasKey === dayKeyToken,
+    renderRow: (x) => extraRow(x, active, navigate),
+    onExpand: () => { expandedExtrasKey = dayKeyToken; refreshIcons(); },
+  });
   exBlock.querySelector('#addextra').onclick = () => openAddExtra(active, selectedKey, navigate);
   card.appendChild(exBlock);
 
@@ -261,7 +265,7 @@ function paceBar(active, startKey, navigate) {
   const bar = el(`<div id="pacebar" class="mb-5 rounded-xl border border-paper-line bg-paper-card p-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm" role="group" aria-label="Catch-up pace">
     <span class="flex items-center gap-1.5 text-ink-soft shrink-0"><i data-lucide="gauge" class="w-4 h-4 text-brand-dark"></i>Catch-up pace</span>
     <span class="flex gap-1.5 shrink-0">${opt('catch-up-first', 'Catch-up first')}${opt('mixed', 'Mixed')}</span>
-    <span class="pace-summary text-xs text-ink-soft min-w-0">${esc(summary)}</span>
+    <span class="pace-summary text-xs text-ink-soft min-w-0 [overflow-wrap:anywhere]">${esc(summary)}</span>
   </div>`);
   bar.querySelectorAll('[data-pace]').forEach(b => {
     b.onclick = () => {
@@ -273,6 +277,28 @@ function paceBar(active, startKey, navigate) {
     };
   });
   return bar;
+}
+
+// Cap the initially rendered extras on a day (e.g. 600 seeded extras) behind a
+// "Show all (N more)" control so one busy day does not bloat the page.
+export function renderDayExtras(container, extras, { expanded = false, cap = EXTRAS_CAP, renderRow, onExpand = null } = {}) {
+  container.replaceChildren();
+  if (!extras.length) {
+    container.appendChild(el(`<p class="text-sm text-ink-faint">Nothing extra added. Use “Add” to schedule more practice, a re-test, or a challenge for this day.</p>`));
+    return;
+  }
+  const shown = expanded || extras.length <= cap ? extras : extras.slice(0, cap);
+  shown.forEach(x => container.appendChild(renderRow(x)));
+  const remaining = extras.length - shown.length;
+  if (remaining > 0) {
+    const more = el(`<button type="button" id="show-all-extras" class="w-full min-h-11 px-3 py-2 rounded-xl border border-paper-line bg-paper text-sm font-medium text-brand-dark hover:border-brand/40 transition-colors">Show all (${esc(remaining)} more)</button>`);
+    more.onclick = () => {
+      more.remove();
+      extras.slice(cap).forEach(x => container.appendChild(renderRow(x)));
+      onExpand?.();
+    };
+    container.appendChild(more);
+  }
 }
 
 function extraRow(x, active, navigate) {
@@ -520,7 +546,7 @@ function extrasBlock(active, navigate) {
   }
 
   if (!extras.refresher) {
-    list.appendChild(el(`<p class="text-sm text-ink-faint">Refresher quizzes and activities start once ${esc(active.name)} has mastered a topic.</p>`));
+    list.appendChild(el(`<p class="text-sm text-ink-faint [overflow-wrap:anywhere]">Refresher quizzes and activities start once ${esc(active.name)} has mastered a topic.</p>`));
   }
 
   // Featured activity/game

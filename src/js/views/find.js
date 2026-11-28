@@ -26,7 +26,7 @@ export function renderFind(params, { navigate }) {
     <div class="mb-5">
       <p class="text-[11px] uppercase tracking-[0.18em] text-ink-faint font-medium mb-1">Topic finder</p>
       <h1 class="font-display text-2xl sm:text-3xl font-600">Find a topic</h1>
-      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-2xl">Type what ${esc(active?.name || 'your learner')} wants to learn. Harrington looks through the ${countLabel(d.meta.topics, 'topic')} of the curriculum map on this computer, without AI, and shows the way there from what is already mastered.</p>
+      <p class="text-ink-soft text-sm mt-1 leading-relaxed max-w-2xl [overflow-wrap:anywhere]">Type what ${esc(active?.name || 'your learner')} wants to learn. Harrington looks through the ${countLabel(d.meta.topics, 'topic')} of the curriculum map on this computer, without AI, and shows the way there from what is already mastered.</p>
     </div>`));
   if (!active) {
     root.appendChild(el(`<p class="text-ink-soft">Add a student to use the topic finder.</p>`));
@@ -63,12 +63,12 @@ export function renderFind(params, { navigate }) {
 
 function requestForm(q, active, navigate) {
   const form = el(`<form class="bg-paper-card border border-paper-line rounded-2xl p-4 sm:p-5 mb-5" role="search">
-    <label for="find-q" class="text-sm font-600 block mb-2">What does ${esc(active.name)} want to learn?</label>
+    <label for="find-q" class="text-sm font-600 block mb-2 [overflow-wrap:anywhere]">What does ${esc(active.name)} want to learn?</label>
     <div class="flex flex-col sm:flex-row gap-2">
       <input id="find-q" name="q" type="search" autocomplete="off" maxlength="${store.REQUEST_TEXT_LEN}" placeholder="e.g. how to tell the time, fractions, volcanoes" class="flex-1 min-w-0 px-3.5 py-2.5 rounded-lg border border-paper-line bg-paper focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
       <button class="shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-dark text-white font-medium transition-colors"><i data-lucide="search" class="w-4 h-4"></i>Find</button>
     </div>
-    <p class="text-xs text-ink-faint mt-2">Each request is kept in ${esc(active.name)}'s request log below, with the topic you choose.</p>
+    <p class="text-xs text-ink-faint mt-2 [overflow-wrap:anywhere]">Each request is kept in ${esc(active.name)}'s request log below, with the topic you choose.</p>
   </form>`);
   const input = form.querySelector('input');
   input.value = q;
@@ -147,7 +147,7 @@ function pathSection(target, active, navigate) {
   const section = el(`<section id="find-path" class="bg-paper-card border border-paper-line rounded-2xl p-4 sm:p-5 mb-5 scroll-mt-20" aria-labelledby="find-path-h">
     <p class="text-[11px] uppercase tracking-[0.16em] text-ink-faint font-medium">Path</p>
     <h2 id="find-path-h" class="font-display text-xl font-600 leading-tight mt-1">${esc(target.name)}</h2>
-    <p class="find-summary text-sm text-ink-soft mt-1"></p>
+    <p class="find-summary text-sm text-ink-soft mt-1 [overflow-wrap:anywhere]"></p>
   </section>`);
   const summary = section.querySelector('.find-summary');
   const done = path.remaining === 0;
@@ -248,7 +248,7 @@ function nextStepCard(topic, active, navigate) {
 function logSection(log, active, navigate, d) {
   const section = el(`<section class="mb-5" aria-labelledby="find-log-h">
     <h2 id="find-log-h" class="font-600 mb-1">Request log</h2>
-    <p class="text-xs text-ink-faint mb-3">What was asked for ${esc(active.name)}, newest first. The last ${formatCount(store.REQUEST_LOG_MAX)} are kept, with the family's data.</p>
+    <p class="text-xs text-ink-faint mb-3 [overflow-wrap:anywhere]">What was asked for ${esc(active.name)}, newest first. The last ${formatCount(store.REQUEST_LOG_MAX)} are kept, with the family's data.</p>
   </section>`);
   if (!log.length) {
     section.appendChild(el(`<p class="text-sm text-ink-soft">No requests yet.</p>`));

@@ -105,12 +105,20 @@ Return ONLY valid JSON (no markdown, no commentary) matching exactly this shape:
 Make "teach" have 3-5 steps. Keep language warm, concrete and age-appropriate. Use real, specific examples (numbers, words, objects) rather than generic filler. The parentTips must be specific to THIS topic, not generic teaching advice.`;
 }
 
+function extractReplyText(res) {
+  const raw = typeof res === 'string' ? res
+    : typeof res?.content === 'string' ? res.content
+    : typeof res?.text === 'string' ? res.text
+    : '';
+  if (!raw.trim()) throw new Error('AI provider returned an empty response');
+  return raw;
+}
+
 // Every request names the capability it uses (see ai-capabilities.js); the
 // server refuses a capability the family has not switched on.
 async function ask(prompt, capability, { includeNotes = false } = {}) {
   const res = await backend.chat([{ role: 'user', content: prompt + AU_SPELLING }], capability, { includeNotes });
-  const text = res?.content || res?.text || String(res);
-  return toHtml(text);
+  return toHtml(extractReplyText(res));
 }
 
 export function aiExplain(topic) {
@@ -135,8 +143,7 @@ function parseJson(text) {
 
 async function askJson(prompt, capability) {
   const res = await backend.chat([{ role: 'user', content: prompt + AU_SPELLING }], capability);
-  const text = res?.content || res?.text || String(res);
-  return parseJson(text);
+  return parseJson(extractReplyText(res));
 }
 
 // Safely evaluate a simple arithmetic expression (digits, + - * / . ( ) only).

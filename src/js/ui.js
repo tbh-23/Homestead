@@ -36,6 +36,16 @@ export function holdConfirmations() {
   setTimeout(() => { confirmationsHeld = false; }, 0);
 }
 
+// Remove any visible confirmation (non-error) toasts so a refusal or failure
+// toast never sits right beside a misleading "saved" confirmation.
+export function clearConfirmations() {
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  [...root.children]
+    .filter(n => n.getAttribute('role') === 'status' && n.getAttribute('data-toast-kind') !== 'error')
+    .forEach(n => n.remove());
+}
+
 // `action: { label, onClick }` adds a button and keeps the toast up longer;
 // clicking it dismisses the toast and runs onClick. A toast with an `id`
 // replaces one already showing with the same id instead of stacking.
@@ -47,7 +57,7 @@ export function toast(msg, kind = 'default', { action = null, id = null } = {}) 
     success: 'bg-brand text-white',
     error: 'bg-[#a4473a] text-white',
   };
-  const t = el(`<div role="status" class="px-4 py-2.5 rounded-lg text-sm font-medium ${colors[kind] || colors.default} shadow-lg flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">${esc(msg)}</div>`);
+  const t = el(`<div role="status" data-toast-kind="${esc(kind)}" class="max-w-full [overflow-wrap:anywhere] px-4 py-2.5 rounded-lg text-sm font-medium ${colors[kind] || colors.default} shadow-lg flex items-center gap-2 opacity-0 translate-y-2 transition-all duration-300">${esc(msg)}</div>`);
   const hide = () => {
     t.classList.add('opacity-0', 'translate-y-2');
     setTimeout(() => t.remove(), 300);

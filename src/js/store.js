@@ -284,6 +284,28 @@ function pruneEmpty(value) {
 //   { kind: 'offers', studentId, day, entry }      a day's daily offers chosen
 //   { kind: 'other', key }                         anything else (not re-applied)
 // Empty containers are ignored. Pure, so it can be tested without a server.
+const PLAN_PART_LABELS = {
+  moves: 'moved calendar topics',
+  done: 'completed calendar days',
+  extras: 'extra calendar items',
+  pace: 'catch-up pace',
+};
+const OTHER_KEY_LABELS = {
+  students: 'learner details',
+  activeStudentId: 'the active learner',
+  tests: 'test results',
+  challenges: 'challenge quiz results',
+  adaptations: 'difficulty settings',
+  suggestions: 'adaptive suggestions',
+  recall: 'recall reviews',
+  practice: 'spaced practice',
+  game: 'XP and badges',
+  interests: 'learner interests',
+  requests: 'topic finder requests',
+  levelset: 'level-set workbook',
+  reading: 'reading sounds and books',
+};
+
 export function diffDocuments(base, local) {
   const b = objectOr(base, {});
   const l = objectOr(local, {});
@@ -300,7 +322,9 @@ export function diffDocuments(base, local) {
         for (const [topicId, entry] of Object.entries(now)) {
           if (!same(before[topicId], entry)) changes.push({ kind: 'status', studentId, topicId, entry });
         }
-        if (Object.keys(before).some(id => !(id in now))) changes.push({ kind: 'other', key });
+        for (const topicId of Object.keys(before)) {
+          if (!(topicId in now)) changes.push({ kind: 'other', key, topicId, action: 'remove' });
+        }
       }
     } else if (key === 'records') {
       for (const studentId of new Set([...Object.keys(objectOr(b.records, {})), ...Object.keys(objectOr(l.records, {}))])) {
@@ -309,9 +333,11 @@ export function diffDocuments(base, local) {
         for (const record of objectOr(l.records, {})[studentId] || []) {
           now.add(record.id);
           if (!before.has(record.id)) changes.push({ kind: 'record', studentId, record });
-          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key });
+          else if (!same(before.get(record.id), record)) changes.push({ kind: 'other', key, record, action: 'edit' });
         }
-        if ([...before.keys()].some(id => !now.has(id))) changes.push({ kind: 'other', key });
+        for (const [id, old] of before) {
+          if (!now.has(id)) changes.push({ kind: 'other', key, record: old, action: 'delete' });
+        }
       }
     } else if (key === 'activity') {
       for (const [studentId, days] of Object.entries(objectOr(l.activity, {}))) {
@@ -326,11 +352,30 @@ export function diffDocuments(base, local) {
         for (const [day, entry] of Object.entries(objectOr(days, {}))) {
           if (same(before[day], entry)) continue;
           const offersOnly = !before[day] && Object.keys(objectOr(entry?.picks, {})).length === 0;
-          changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key });
+          changes.push(offersOnly ? { kind: 'offers', studentId, day, entry } : { kind: 'other', key, label: 'today’s picks' });
         }
       }
+    } else if (key === 'plan') {
+      let pushed = false;
+      for (const studentId of new Set([...Object.keys(objectOr(b.plan, {})), ...Object.keys(objectOr(l.plan, {}))])) {
+        const before = objectOr(objectOr(b.plan, {})[studentId], {});
+        const now = objectOr(objectOr(l.plan, {})[studentId], {});
+        for (const [part, label] of Object.entries(PLAN_PART_LABELS)) {
+          if (!same(before[part], now[part])) { changes.push({ kind: 'other', key, label }); pushed = true; }
+        }
+      }
+      if (!pushed) changes.push({ kind: 'other', key, label: 'calendar plan' });
+    } else if (key === 'settings') {
+      const before = objectOr(b.settings, {});
+      const now = objectOr(l.settings, {});
+      let pushed = false;
+      if (!same(before.calendar, now.calendar)) { changes.push({ kind: 'other', key, label: 'calendar settings' }); pushed = true; }
+      if (!same(before.parentPinHash, now.parentPinHash) || !same(before.parentPinSalt, now.parentPinSalt)) {
+        changes.push({ kind: 'other', key, label: 'grown-up PIN' }); pushed = true;
+      }
+      if (!pushed) changes.push({ kind: 'other', key, label: 'settings' });
     } else {
-      changes.push({ kind: 'other', key });
+      changes.push({ kind: 'other', key, ...(OTHER_KEY_LABELS[key] ? { label: OTHER_KEY_LABELS[key] } : {}) });
     }
   }
   return changes;
@@ -362,6 +407,11 @@ function reapplyBookkeeping(c) {
 // One line naming what a conflict discarded, for the toast: up to three
 // items, then "and N more". `nameOf(topicId)` gives a topic's name. Returns
 // '' when nothing a parent did was lost.
+function recordLabel(record) {
+  const what = record?.type === 'note' ? 'the note' : 'the record';
+  return record?.title ? `${what} “${record.title}”` : what;
+}
+
 export function describeDiscarded(changes, nameOf = id => id) {
   const parts = [];
   for (const c of changes || []) {
@@ -370,10 +420,11 @@ export function describeDiscarded(changes, nameOf = id => id) {
       const status = c.entry?.status || 'none';
       parts.push(`${nameOf(c.topicId) || 'a topic'} marked ${status === 'none' ? 'not started' : status}`);
     } else if (c.kind === 'record') {
-      const what = c.record?.type === 'note' ? 'the note' : 'the record';
-      parts.push(c.record?.title ? `${what} “${c.record.title}”` : what);
+      parts.push(recordLabel(c.record));
     } else if (c.kind === 'other') {
-      parts.push('other changes');
+      if (c.key === 'progress' && c.topicId) parts.push(`${nameOf(c.topicId) || 'a topic'} progress removed`);
+      else if (c.key === 'records' && c.record) parts.push(`${c.action === 'delete' ? 'removing' : 'edits to'} ${recordLabel(c.record)}`);
+      else parts.push(c.label || OTHER_KEY_LABELS[c.key] || 'other changes');
     }
   }
   const unique = [...new Set(parts)];
