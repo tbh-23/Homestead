@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { hashPin, hasPin, migratePinSettings, newSalt, pinSettings, sha256Hex, verifyPin } from '../src/js/pin.js';
+import {
+  PIN_BASE_LOCKOUT_MS,
+  PIN_MAX_ATTEMPTS,
+  PIN_MAX_LOCKOUT_MS,
+  clearPinSettings,
+  createPinThrottle,
+  hashPin,
+  hasPin,
+  migratePinSettings,
+  newSalt,
+  pinSettings,
+  sha256Hex,
+  verifyPin,
+} from '../src/js/pin.js';
 
 const nodeSha = (text) => createHash('sha256').update(text).digest('hex');
 
@@ -88,4 +101,68 @@ test('a malformed or half-present hash and salt are dropped, and count as no PIN
     assert.equal(verifyPin('0420', settings), false, label);
     assert.deepEqual(migratePinSettings({ ...settings, calendar: {} }), { calendar: {} }, label);
   }
+});
+
+test('clearPinSettings removes PIN fields while keeping other settings (HAR-57)', () => {
+  const settings = pinSettings({ calendar: { homeDays: [1, 2] } }, '0420');
+  assert.equal(hasPin(settings), true);
+  const cleared = clearPinSettings({ ...settings, parentPin: '0420' });
+  assert.equal(hasPin(cleared), false);
+  assert.deepEqual(cleared, { calendar: { homeDays: [1, 2] } });
+});
+
+test('PIN throttle locks out after 5 wrong tries with exponential backoff persisted in storage (HAR-57)', () => {
+  let clock = 1_000_000;
+  const map = new Map();
+  const storage = {
+    getItem: (k) => map.get(k) ?? null,
+    setItem: (k, v) => map.set(k, v),
+    removeItem: (k) => map.delete(k),
+  };
+  const settings = pinSettings({}, '2468', 'a'.repeat(32));
+  const throttle = createPinThrottle({ storage, now: () => clock });
+
+  for (let i = 1; i < PIN_MAX_ATTEMPTS; i += 1) {
+    const res = throttle.verify('0000', settings);
+    assert.equal(res.ok, false);
+    assert.equal(res.locked, false);
+    assert.equal(res.failures, i);
+  }
+
+  // 5th failure triggers the base lockout (15 s).
+  const fifth = throttle.verify('0000', settings);
+  assert.equal(fifth.ok, false);
+  assert.equal(fifth.locked, true);
+  assert.equal(fifth.failures, 5);
+  assert.equal(fifth.remainingMs, PIN_BASE_LOCKOUT_MS);
+
+  // Reopening the modal (a fresh throttle instance sharing storage) keeps the lockout,
+  // and even the right PIN is refused while locked.
+  const reopened = createPinThrottle({ storage, now: () => clock });
+  assert.equal(reopened.status().locked, true);
+  assert.equal(reopened.verify('2468', settings).ok, false);
+  assert.equal(reopened.status().failures, 5);
+
+  // After 15 s, a 6th failure doubles the lockout to 30 s.
+  clock += PIN_BASE_LOCKOUT_MS;
+  assert.equal(reopened.status().locked, false);
+  const sixth = reopened.verify('9999', settings);
+  assert.equal(sixth.locked, true);
+  assert.equal(sixth.remainingMs, PIN_BASE_LOCKOUT_MS * 2);
+
+  // Further failures double up to the 5-minute cap.
+  for (let i = 7; i <= 11; i += 1) {
+    clock += PIN_MAX_LOCKOUT_MS;
+    const res = reopened.verify('9999', settings);
+    assert.equal(res.locked, true);
+    assert.equal(res.remainingMs, Math.min(PIN_MAX_LOCKOUT_MS, PIN_BASE_LOCKOUT_MS * (2 ** (i - PIN_MAX_ATTEMPTS))));
+  }
+
+  // After the cooldown, the right PIN succeeds and resets storage.
+  clock += PIN_MAX_LOCKOUT_MS;
+  const ok = reopened.verify('2468', settings);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.locked, false);
+  assert.equal(ok.failures, 0);
+  assert.equal(map.size, 0);
 });

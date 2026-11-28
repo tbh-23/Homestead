@@ -160,6 +160,8 @@ function openStudentMenu(navigate) {
           <i data-lucide="download" class="w-4 h-4"></i>Export</button>
         <button id="m-import" class="flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
           <i data-lucide="upload" class="w-4 h-4"></i>Import</button>
+        <button id="m-pin" class="col-span-2 flex items-center justify-center gap-1.5 h-11 rounded-full bg-paper text-sm font-medium text-ink hover:bg-paper-deep transition-colors" title="Set or change child-view PIN">
+          <i data-lucide="lock" class="w-4 h-4"></i>Child-view PIN</button>
       </div>
     </div>
   </div>`);
@@ -205,6 +207,7 @@ function openStudentMenu(navigate) {
   body.querySelector('#m-export').onclick = () => { m.close(); openExportDialog(); };
   const phoneImport = body.querySelector('#m-import');
   phoneImport.onclick = () => { m.close(); pickImportFile(); };
+  body.querySelector('#m-pin').onclick = () => { m.close(); openParentPinDialog(); };
   disableImportIfReadOnly(phoneImport);
   const m = openModal(body);
 }
@@ -368,14 +371,75 @@ function accountBox() {
         <i data-lucide="download" class="w-3.5 h-3.5"></i>Export</button>
       <button id="import" class="flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Import family data">
         <i data-lucide="upload" class="w-3.5 h-3.5"></i>Import</button>
+      <button id="pin-btn" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors" title="Set or change child-view PIN">
+        <i data-lucide="lock" class="w-3.5 h-3.5"></i>Child-view PIN</button>
       <a href="#settings" class="col-span-2 flex items-center justify-center gap-1.5 h-8 rounded-full bg-paper text-xs font-medium text-ink hover:bg-paper-deep transition-colors"><i data-lucide="plug-zap" class="w-3.5 h-3.5"></i>AI provider</a>
     </div>
   </div>`);
   box.querySelector('#export').onclick = openExportDialog;
   const importButton = box.querySelector('#import');
   importButton.onclick = pickImportFile;
+  box.querySelector('#pin-btn').onclick = openParentPinDialog;
   disableImportIfReadOnly(importButton);
   return box;
+}
+
+// Parent-side management for the child-view PIN (HAR-57 / G12): only the
+// parent view can set, change or clear the PIN.
+function openParentPinDialog() {
+  const hasPin = store.hasParentPin();
+  const body = el(`<div class="p-5">
+    <h3 class="font-display text-lg font-600 mb-1">${hasPin ? 'Child-view PIN' : 'Set child-view PIN'}</h3>
+    <p class="text-sm text-ink-soft mb-4">${hasPin
+      ? 'A 4-digit PIN is set. Enter a new PIN below to change it, or remove it so Grown-ups returns straight to the parent view.'
+      : 'Choose a 4-digit PIN to keep the child view from closing with one tap. Without one, Grown-ups returns straight to the parent view.'}</p>
+    <form id="pin-form" class="space-y-3" autocomplete="off">
+      <div>
+        <label for="pp-new" class="text-sm font-medium block mb-1">${hasPin ? 'New 4-digit PIN' : '4-digit PIN'}</label>
+        <input id="pp-new" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" required class="${inputCls}" />
+      </div>
+      <div>
+        <label for="pp-confirm" class="text-sm font-medium block mb-1">Confirm 4-digit PIN</label>
+        <input id="pp-confirm" name="confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="new-password" required class="${inputCls}" />
+      </div>
+      <p id="pp-err" class="text-sm text-[#a4473a] min-h-[1.25rem]" role="alert"></p>
+      <div class="flex flex-wrap gap-2 justify-end pt-1">
+        ${hasPin ? '<button type="button" id="pp-remove" class="px-4 h-11 rounded-full bg-paper text-sm font-medium text-[#a4473a] mr-auto">Remove PIN</button>' : ''}
+        <button type="button" id="pp-cancel" class="px-4 h-11 rounded-full bg-paper text-sm font-medium">Cancel</button>
+        <button type="submit" class="px-5 h-11 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Save PIN</button>
+      </div>
+    </form>
+  </div>`);
+  const err = body.querySelector('#pp-err');
+  const newInput = body.querySelector('#pp-new');
+  const confirmInput = body.querySelector('#pp-confirm');
+  body.querySelector('#pp-cancel').onclick = () => m.close();
+  body.querySelector('#pp-remove')?.addEventListener('click', () => {
+    store.clearParentPin();
+    m.close();
+    toast('Child-view PIN removed', 'success');
+  });
+  body.querySelector('#pin-form').onsubmit = (e) => {
+    e.preventDefault();
+    const pin = newInput.value.trim();
+    const confirm = confirmInput.value.trim();
+    if (!/^\d{4}$/.test(pin)) {
+      err.textContent = 'Please enter 4 digits.';
+      newInput.focus();
+      return;
+    }
+    if (pin !== confirm) {
+      err.textContent = 'Those PINs did not match. Try again.';
+      confirmInput.value = '';
+      confirmInput.focus();
+      return;
+    }
+    store.setParentPin(pin);
+    m.close();
+    toast('Child-view PIN saved', 'success');
+  };
+  const m = openModal(body);
+  newInput.focus();
 }
 
 // ---- Family data: export, import, and save problems ----
@@ -447,18 +511,19 @@ function pickImportFile() {
     }
     const check = store.inspectImport(doc);
     if (!check.ok) { toast(check.error, 'error'); return; }
-    openImportPreview(doc, check.learners, check.colorsAdjusted, check.picturesDropped);
+    openImportPreview(doc, check.learners, check.colorsAdjusted, check.picturesDropped, check.unknownFields);
   };
   input.click();
 }
 
-function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 0) {
+function openImportPreview(doc, learners, colorsAdjusted = 0, picturesDropped = 0, unknownFields = []) {
   const body = el(`<div class="p-5">
     <h3 class="font-display text-lg font-600 mb-1">Import family data?</h3>
     <p class="text-sm text-ink-faint mb-4">This replaces all family data on this server with the file${doc.exportedAt ? ` exported ${esc(new Date(doc.exportedAt).toLocaleString())}` : ''}. Recordings are not part of the file.</p>
     <div id="learners" class="space-y-2 mb-5"></div>
     ${colorsAdjusted ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(colorsAdjusted, 'learner colour'))} adjusted to the nearest palette colour.</p>` : ''}
     ${picturesDropped ? `<p class="text-xs text-ink-faint -mt-3 mb-5">${esc(countLabel(picturesDropped, 'unknown picture item'))} from a newer version will be left out of saved books.</p>` : ''}
+    ${unknownFields.length ? `<p class="text-xs text-ink-faint -mt-3 mb-5">Carries ${esc(countLabel(unknownFields.length, 'unrecognised field'))} (kept as-is): ${unknownFields.map(f => `<code class="px-1 py-0.5 rounded bg-paper">${esc(f)}</code>`).join(', ')}.</p>` : ''}
     <div class="flex gap-2 justify-end">
       <button id="cancel" class="px-4 h-10 rounded-full bg-paper text-sm font-medium">Cancel</button>
       <button id="confirm" class="px-4 h-10 rounded-full bg-brand hover:bg-brand-dark text-white text-sm font-medium transition-colors">Replace family data</button>

@@ -30,6 +30,17 @@ export const RETIRED_FIELDS = ['curriculumSnapshot'];
 // (exportedAt, taxonomyVersion, unsavedChanges); never family data.
 export const BOOKKEEPING_FIELDS = ['version', 'updatedAt', 'writeId', 'exportedAt', 'taxonomyVersion', 'unsavedChanges'];
 
+// Bounds on unrecognised top-level fields kept for forward compatibility with
+// newer Harrington versions (HAR-56 / G11).
+export const MAX_UNKNOWN_FIELDS = 20;
+export const MAX_UNKNOWN_BYTES = 64 * 1024;
+const KNOWN_TOP_LEVEL_KEYS = new Set([...DOCUMENT_KEYS, ...RETIRED_FIELDS, ...BOOKKEEPING_FIELDS]);
+
+export function unknownTopLevelFields(doc) {
+  if (!isObject(doc)) return [];
+  return Object.keys(doc).filter(k => !KNOWN_TOP_LEVEL_KEYS.has(k));
+}
+
 export const MASTERY_STATUSES = ['none', 'learning', 'practicing', 'mastered'];
 // 'note' is the label the record views fall back to for an older record.
 export const RECORD_TYPES = ['observation', 'question', 'discussion', 'assessment', 'recording', 'note'];
@@ -424,10 +435,37 @@ function settingsProblem(settings, schemaVersion) {
   return ok ? null : 'The file\'s calendar settings are not in the expected shape.';
 }
 
+function unknownFieldsProblem(doc) {
+  const keys = unknownTopLevelFields(doc);
+  if (!keys.length) return null;
+  if (keys.some(k => k in Object.prototype)) {
+    return 'The file has an invalid top-level field name.';
+  }
+  if (keys.length > MAX_UNKNOWN_FIELDS) {
+    return `The file has more than ${MAX_UNKNOWN_FIELDS} unrecognised top-level fields.`;
+  }
+  const unknown = Object.create(null);
+  for (const k of keys) {
+    if (doc[k] !== undefined) Object.defineProperty(unknown, k, { value: doc[k], enumerable: true, configurable: true, writable: true });
+  }
+  let bytes;
+  try {
+    bytes = new TextEncoder().encode(JSON.stringify(unknown)).length;
+  } catch {
+    return 'The file\'s unrecognised fields could not be read.';
+  }
+  if (bytes > MAX_UNKNOWN_BYTES) {
+    return 'The file\'s unrecognised fields are larger than 64 KB.';
+  }
+  return null;
+}
+
 // Null when `doc` is a family document the app can load and render, otherwise
 // the first problem found, as a sentence.
 export function validateDocument(doc) {
   if (!isObject(doc)) return 'The file is not a Harrington family export.';
+  const unknownProblem = unknownFieldsProblem(doc);
+  if (unknownProblem) return unknownProblem;
   if (!Array.isArray(doc.students)) return 'The file has no learner list.';
   const ids = new Set();
   for (const [index, s] of doc.students.entries()) {
@@ -516,6 +554,33 @@ export function stripUnknownPictures(doc) {
     reading[id] = libChanged ? { ...value, library } : value;
   }
   return dropped ? { doc: { ...doc, reading }, dropped } : { doc, dropped: 0 };
+}
+
+// Drops entries in per-learner maps (progress, records, tests, …) whose key
+// is not one of the document's learners (including orphan ids and prototype
+// property names such as "__proto__" or "constructor").
+export function stripOrphanLearnerKeys(doc) {
+  if (!isObject(doc) || !Array.isArray(doc.students)) return { doc, dropped: 0 };
+  const ids = new Set(
+    doc.students
+      .filter(s => isObject(s) && validLearnerId(s.id))
+      .map(s => s.id),
+  );
+  let dropped = 0;
+  let out = doc;
+  for (const key of LEARNER_KEYS) {
+    const map = doc[key];
+    if (!isObject(map)) continue;
+    const entries = Object.entries(map);
+    const keptEntries = entries.filter(([id]) => ids.has(id));
+    const lost = entries.length - keptEntries.length;
+    if (lost > 0) {
+      if (out === doc) out = { ...doc };
+      out[key] = Object.fromEntries(keptEntries);
+      dropped += lost;
+    }
+  }
+  return dropped ? { doc: out, dropped } : { doc, dropped: 0 };
 }
 
 // ---- Repairs ----

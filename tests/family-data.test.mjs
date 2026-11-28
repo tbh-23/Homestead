@@ -812,7 +812,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
   test('the orphan prune on first load saves once, at once, like a migration', async () => {
     const sid = 's-prune-once';
     await saveRecallCache('prune-once');
-    await otherDevicePut((doc) => ({ ...doc, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-once') } }));
+    await otherDevicePut((doc) => ({
+      ...doc,
+      students: [...(doc.students || []).filter((s) => s.id !== sid), { id: sid, name: 'Prune Once', birthYear: 2018 }],
+      recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-once') },
+    }));
     await store.loadAll();
     const before = (await serverState()).version;
     statusEvents.length = 0;
@@ -831,7 +835,11 @@ describe('family data safety in the store', { concurrency: false }, () => {
   test('two tabs pruning the same orphans: the losing tab reloads without a toast', async () => {
     const sid = 's-prune-race';
     await saveRecallCache('prune-race');
-    await otherDevicePut((doc) => ({ ...doc, recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-race') } }));
+    await otherDevicePut((doc) => ({
+      ...doc,
+      students: [...(doc.students || []).filter((s) => s.id !== sid), { id: sid, name: 'Prune Race', birthYear: 2018 }],
+      recall: { ...doc.recall, [sid]: legacyRecall(sid, 'prune-race') },
+    }));
     await store.loadAll();
     // The other tab prunes and saves just before this tab's repair save.
     const wrapped = globalThis.fetch;

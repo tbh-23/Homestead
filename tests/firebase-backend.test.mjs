@@ -221,6 +221,22 @@ test('firebaseSaveState implements compare-and-swap (0 -> 1, 412 conflict, 422 v
     () => firebaseSaveState(JSON.stringify({ ...validDoc, writeId: 'w_stale' }), 0, TEST_CFG, mockFetch),
     (err) => err.status === 412 && err.body?.version === 1 && err.body?.writeId === 'w_1',
   );
+
+  // >64 KB unknown field fails 422; orphan/prototype per-learner keys are dropped before saving.
+  await assert.rejects(
+    () => firebaseSaveState(JSON.stringify({ ...validDoc, smuggled: 'x'.repeat(70 * 1024) }), 1, TEST_CFG, mockFetch),
+    (err) => err.status === 422,
+  );
+  const v2 = await firebaseSaveState(JSON.stringify({
+    ...validDoc,
+    records: {
+      __proto__: [{ id: 'r_p', type: 'note' }],
+      not_a_learner: [{ id: 'r_o', type: 'note' }],
+      s1: [{ id: 'r_1', type: 'note' }],
+    },
+  }), 1, TEST_CFG, mockFetch);
+  assert.equal(v2, 2);
+  assert.deepEqual(Object.keys(store.doc.records), ['s1']);
 });
 
 test('firebaseChat redacts learner names and strips stored parent notes unless opted in on analysis/review', async () => {
