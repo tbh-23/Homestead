@@ -50,6 +50,105 @@ export function pinSettings(settings, pin, salt = newSalt()) {
   return { ...rest, parentPinSalt: salt, parentPinHash: hashPin(String(pin), salt) };
 }
 
+export function clearPinSettings(settings) {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return settings;
+  const { parentPin: _plain, parentPinHash: _h, parentPinSalt: _s, ...rest } = settings;
+  return rest;
+}
+
+export const PIN_MAX_ATTEMPTS = 5;
+export const PIN_BASE_LOCKOUT_MS = 15_000;
+export const PIN_MAX_LOCKOUT_MS = 5 * 60 * 1000;
+
+const memoryThrottle = new Map();
+
+function defaultPinStorage() {
+  return {
+    getItem(k) {
+      try {
+        if (typeof globalThis.sessionStorage !== 'undefined') return globalThis.sessionStorage.getItem(k);
+      } catch {}
+      return memoryThrottle.get(k) ?? null;
+    },
+    setItem(k, v) {
+      memoryThrottle.set(k, v);
+      try {
+        if (typeof globalThis.sessionStorage !== 'undefined') globalThis.sessionStorage.setItem(k, v);
+      } catch {}
+    },
+    removeItem(k) {
+      memoryThrottle.delete(k);
+      try {
+        if (typeof globalThis.sessionStorage !== 'undefined') globalThis.sessionStorage.removeItem(k);
+      } catch {}
+    },
+  };
+}
+
+// Tracks consecutive wrong child-view PIN guesses across modal open/close in
+// sessionStorage (with an in-memory fallback), enforcing an exponential
+// cooldown after PIN_MAX_ATTEMPTS failures up to PIN_MAX_LOCKOUT_MS.
+export function createPinThrottle({ storage = defaultPinStorage(), now = () => Date.now(), key = 'harrington:pinThrottle' } = {}) {
+  const read = () => {
+    try {
+      const raw = storage?.getItem?.(key);
+      if (!raw) return { failures: 0, lockedUntil: 0 };
+      const parsed = JSON.parse(raw);
+      return {
+        failures: Number.isSafeInteger(parsed?.failures) && parsed.failures >= 0 ? parsed.failures : 0,
+        lockedUntil: Number.isFinite(parsed?.lockedUntil) && parsed.lockedUntil >= 0 ? parsed.lockedUntil : 0,
+      };
+    } catch {
+      return { failures: 0, lockedUntil: 0 };
+    }
+  };
+  const write = (state) => {
+    try {
+      if (state.failures === 0 && state.lockedUntil === 0) storage?.removeItem?.(key);
+      else storage?.setItem?.(key, JSON.stringify(state));
+    } catch {}
+  };
+  const status = () => {
+    const state = read();
+    const remainingMs = Math.max(0, state.lockedUntil - now());
+    return {
+      locked: remainingMs > 0,
+      remainingMs,
+      failures: state.failures,
+      lockedUntil: state.lockedUntil,
+    };
+  };
+  const recordFailure = () => {
+    const current = read();
+    const currentRemaining = Math.max(0, current.lockedUntil - now());
+    if (currentRemaining > 0) {
+      return { locked: true, remainingMs: currentRemaining, failures: current.failures, lockedUntil: current.lockedUntil };
+    }
+    const failures = current.failures + 1;
+    const durationMs = failures >= PIN_MAX_ATTEMPTS
+      ? Math.min(PIN_MAX_LOCKOUT_MS, PIN_BASE_LOCKOUT_MS * (2 ** (failures - PIN_MAX_ATTEMPTS)))
+      : 0;
+    const lockedUntil = durationMs > 0 ? now() + durationMs : 0;
+    write({ failures, lockedUntil });
+    return { locked: durationMs > 0, remainingMs: durationMs, failures, lockedUntil };
+  };
+  const reset = () => {
+    write({ failures: 0, lockedUntil: 0 });
+  };
+  const verify = (pin, settings) => {
+    const current = status();
+    if (current.locked) return { ok: false, ...current };
+    if (verifyPin(pin, settings)) {
+      reset();
+      return { ok: true, locked: false, remainingMs: 0, failures: 0, lockedUntil: 0 };
+    }
+    return { ok: false, ...recordFailure() };
+  };
+  return { status, recordFailure, reset, verify };
+}
+
+export const pinThrottle = createPinThrottle();
+
 // A family document from before the hash (or hand-edited, or imported) may
 // carry the plain PIN, or a hash or salt that is not one Harrington wrote.
 // Returns settings with the plain PIN hashed and any malformed hash and salt

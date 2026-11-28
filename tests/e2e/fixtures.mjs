@@ -274,19 +274,15 @@ export function childView(page) {
 
 export const TEST_PIN = '2468';
 
-// "Grown-ups" asks for the parent PIN, or sets one (typed twice) the first time.
+// "Grown-ups" asks for the parent PIN when one is set, or returns straight
+// to the parent view when none is set (HAR-57).
 export async function leaveChildView(page, pin = TEST_PIN) {
   const view = childView(page);
   await view.getByRole('button', { name: 'Back to the grown-up view' }).click();
-  const input = view.getByLabel('Grown-up PIN');
-  if (await view.getByRole('heading', { name: 'Set a grown-up PIN' }).isVisible()) {
-    await input.fill(pin);
-    await view.getByRole('button', { name: 'Continue' }).click();
-    await expect(view.getByRole('heading', { name: 'Type it again' })).toBeVisible();
-  } else {
+  if (await view.count() > 0) {
     await expect(view.getByRole('heading', { name: 'Grown-ups only' })).toBeVisible();
+    await view.getByLabel('Grown-up PIN').fill(pin);
+    await view.getByRole('button', { name: 'Continue' }).click();
   }
-  await input.fill(pin);
-  await view.getByRole('button', { name: 'Continue' }).click();
   await expect(view).toHaveCount(0);
 }

@@ -443,6 +443,47 @@ test('refuses a save the app could not render (422) or a data format it does not
   await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...before, version: stored.version }));
 });
 
+test('rejects >64 KB unknown top-level fields (422) and drops orphan/prototype per-learner keys on save (HAR-56)', async () => {
+  const current = async () => (await fetch(`${baseUrl}/api/state`)).json();
+  const before = await current();
+  const learner = { id: 's_g11', name: 'G11 Learner', birthYear: 2018 };
+
+  // >64 KB smuggled unknown top-level field is rejected with 422.
+  const tooLarge = await putState({ students: [learner], smuggled: 'x'.repeat(70 * 1024) }, `"v${before.version}"`);
+  assert.equal(tooLarge.status, 422);
+  assert.deepEqual(await tooLarge.json(), { error: 'The file\'s unrecognised fields are larger than 64 KB.' });
+
+  // <=64 KB unknown top-level field is kept (forward compat), while __proto__ and orphan learner keys are dropped.
+  const payloadText = JSON.stringify({
+    schemaVersion: SCHEMA_VERSION,
+    students: [learner],
+    activeStudentId: 's_g11',
+    futureNote: 'kept',
+    records: {
+      __proto__: [{ id: 'r_p', type: 'note', note: 'smuggled' }],
+      not_a_learner: [{ id: 'r_o', type: 'note', note: 'orphan' }],
+      s_g11: [{ id: 'r_1', type: 'note', note: 'real' }],
+    },
+    progress: {
+      not_a_learner: { counting: { status: 'mastered' } },
+      s_g11: { counting: { status: 'learning' } },
+    },
+  });
+  const saved = await fetch(`${baseUrl}/api/state`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'If-Match': `"v${before.version}"` },
+    body: payloadText,
+  });
+  assert.equal(saved.status, 204);
+
+  const stored = await current();
+  assert.equal(stored.futureNote, 'kept');
+  assert.deepEqual(Object.keys(stored.records), ['s_g11']);
+  assert.deepEqual(Object.keys(stored.progress), ['s_g11']);
+
+  await writeFile(join(dataDir, 'family-state.json'), JSON.stringify({ ...before, version: stored.version }));
+});
+
 test('round-trips an export through import', async () => {
   const family = {
     students: [{ id: 's1', name: 'Sample One', birthYear: 2017 }, { id: 's2', name: 'Sample Two', birthYear: 2020 }],

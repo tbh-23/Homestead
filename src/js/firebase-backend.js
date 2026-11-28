@@ -3,7 +3,7 @@
 // Activated only when activeFirebaseConfig() returns a non-null config;
 // local self-hosted mode (`node server.mjs`) never triggers these paths.
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
-import { validateDocument } from './document.js';
+import { stripOrphanLearnerKeys, validateDocument } from './document.js';
 import { activeFirebaseConfig } from './firebase-config.js';
 import { redactNames } from './redact.js';
 import { SCHEMA_VERSION, schemaVersionOf } from './schema.js';
@@ -628,9 +628,10 @@ export async function firebaseSaveState(bodyText, expectedVersion, cfgOverride =
     throw httpError(msg, 409, { error: msg });
   }
 
+  const { doc: cleanedDoc } = stripOrphanLearnerKeys(doc);
   const fresh = typeof writeId === 'string' && writeId.length > 0 && writeId.length <= 64 && writeId !== currentState.doc.writeId;
   const next = {
-    ...doc,
+    ...cleanedDoc,
     schemaVersion: schema >= 1 ? schema : SCHEMA_VERSION,
     version: expectedVersion + 1,
     updatedAt: Date.now(),

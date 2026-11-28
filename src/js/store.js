@@ -2,14 +2,14 @@
 import * as backend from './backend.js';
 import { AI_CAPABILITIES, capabilityOffMessage } from './ai-capabilities.js';
 import { SCHEMA_VERSION, isNewerSchema, isUnwritableSchema, migrateDocument, schemaVersionOf } from './schema.js';
-import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, stripUnknownPictures, validDateKey, validMonth, validYear, validateDocument } from './document.js';
+import { BOOKKEEPING_FIELDS, DOCUMENT_KEYS, dropBrokenEntries, LEARNER_KEYS, REQUEST_TEXT_MAX, RETIRED_FIELDS, MIN_BIRTH_YEAR, NAME_MAX, isObject, realDateKey, stripOrphanLearnerKeys, stripUnknownPictures, unknownTopLevelFields, validDateKey, validMonth, validYear, validateDocument } from './document.js';
 import { formatCount } from './format.js';
 import { setHosting, SIGN_IN_MESSAGE } from './hosting.js';
 import { getData, isCurrentTopic } from './data.js';
 import { pruneDismissed } from './alert-dismissals.js';
 import { normalizeSession } from './levelset.js';
 import { LIBRARY_MAX, normalizeReading } from './phonics/reading.js';
-import { PIN_PATTERN, hasPin, migratePinSettings, pinSettings, verifyPin } from './pin.js';
+import { PIN_PATTERN, clearPinSettings, hasPin, migratePinSettings, pinSettings, pinThrottle, verifyPin } from './pin.js';
 import { CURRICULUM_ID, learnerYear, normalizeYear } from './curriculum.js';
 
 export { MIN_BIRTH_YEAR, NAME_MAX };
@@ -197,7 +197,8 @@ function applyDocument(data) {
   // the next save carries the cleaned document.
   // Loaded from the server: its first save in a newer format keeps the stored
   // file, so the migration's notice can name that copy (schema.js).
-  const { doc } = dropBrokenEntries(migrateDocument(raw, { context: { keepsCopy: true } }));
+  const { doc: brokenCleaned } = dropBrokenEntries(migrateDocument(raw, { context: { keepsCopy: true } }));
+  const { doc } = readOnly ? { doc: brokenCleaned } : stripOrphanLearnerKeys(brokenCleaned);
   unknownFields = Object.fromEntries(Object.entries(doc)
     .filter(([key]) => !DOCUMENT_KEYS.includes(key) && !BOOKKEEPING_FIELDS.includes(key) && !RETIRED_FIELDS.includes(key)));
   const fields = documentFields(doc);
@@ -770,6 +771,7 @@ export function inspectImport(doc) {
   const { doc: stripped, dropped: picturesDropped } = stripUnknownPictures(doc);
   const problem = validateDocument(stripped);
   if (problem) return fail(problem);
+  const unknownFields = unknownTopLevelFields(stripped);
   const learners = stripped.students.map(s => ({
     name: s.name,
     topics: countOf(stripped.progress?.[s.id]),
@@ -778,7 +780,7 @@ export function inspectImport(doc) {
   }));
   // Learner colors that import will move to the nearest palette color.
   const colorsAdjusted = stripped.students.filter(s => paletteColor(s.color) !== s.color).length;
-  return { ok: true, learners, colorsAdjusted, picturesDropped };
+  return { ok: true, learners, colorsAdjusted, picturesDropped, unknownFields };
 }
 
 // Replaces the family document on the server with `doc`, guarded by the
@@ -788,7 +790,8 @@ export function importDocument(doc) {
   if (readOnly) return Promise.reject(new Error(readOnlyMessage()));
   const check = inspectImport(doc);
   if (!check.ok) return Promise.reject(new Error(check.error));
-  const { doc: stripped } = stripUnknownPictures(migrateDocument(withValidActive(doc)));
+  const { doc: strippedPictures } = stripUnknownPictures(migrateDocument(withValidActive(doc)));
+  const { doc: stripped } = stripOrphanLearnerKeys(strippedPictures);
   const { version: _v, updatedAt: _u, writeId: _w, exportedAt: _e, taxonomyVersion: _t, unsavedChanges: _c, ...data } = stripped;
   data.students = data.students.map(s => ({ ...s, color: paletteColor(s.color) }));
   // The topic finder's log: known learners only, newest first, capped.
@@ -1675,10 +1678,22 @@ export function setChildViewOpen(open) { childViewOpen = !!open; }
 // (pin.js).
 export function hasParentPin() { return hasPin(state.settings); }
 export function checkParentPin(pin) { return verifyPin(pin, state.settings); }
+export function parentPinLockout() { return pinThrottle.status(); }
+export function attemptParentPin(pin) { return pinThrottle.verify(pin, state.settings); }
 export function setParentPin(pin) {
   if (!PIN_PATTERN.test(String(pin))) return false;
   state.settings = pinSettings(state.settings, pin);
+  pinThrottle.reset();
   persist();
+  emit();
+  return true;
+}
+export function clearParentPin() {
+  if (!hasPin(state.settings)) return false;
+  state.settings = clearPinSettings(state.settings);
+  pinThrottle.reset();
+  persist();
+  emit();
   return true;
 }
 

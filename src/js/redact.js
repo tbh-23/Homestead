@@ -5,16 +5,19 @@
 // Accents are folded on both sides before matching, so "Zoë", "Zoe" and a
 // decomposed "Zoë" are the same name.
 const fold = s => s.normalize('NFD').replace(/\p{M}/gu, '');
-// Space, hyphen and apostrophes are interchangeable and optional inside a name:
-// "Mary-Jane" also matches "Mary Jane" and "MaryJane", "O'Neil" matches "O’Neil".
-const NAME_SEP = /[\s\-'‘’]+/;
+// Space, control characters, hyphen and apostrophes are interchangeable and
+// optional inside a name: "Mary-Jane" also matches "Mary Jane" and "MaryJane",
+// "O'Neil" matches "O’Neil", and "Ada\u0007Quill" splits into its words.
+const NAME_SEP = /[\s\p{C}\-'‘’]+/u;
+const WORD_SPLIT = /[^\p{L}\p{N}\-'‘’]+/u;
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// The full name, each space-separated part and each half of a hyphenated part.
-// Parts of one or two letters ("An", "He", "Do") match only capitalized or in
-// capitals so they do not swallow function words; everything else, including
-// three-letter parts like "leo" or "mia", and the full name itself, matches in
-// any case. Longest first, so a full name goes
+// The full name, every word-like run (splitting on whitespace, punctuation and
+// control characters, including nicknames inside brackets or quotes) and each
+// half of a hyphenated part. Parts of one or two letters ("An", "He", "Do")
+// match only capitalized or in capitals so they do not swallow function words;
+// everything else, including three-letter parts like "leo" or "mia", and the
+// full name itself, matches in any case. Longest first, so a full name goes
 // before its parts.
 function namePatterns(fullNames) {
   const seen = new Map();
@@ -35,7 +38,7 @@ function namePatterns(fullNames) {
     const full = String(raw || '').trim();
     if (!full) continue;
     add(full, true);
-    for (const part of full.split(/\s+/)) {
+    for (const part of fold(full).split(WORD_SPLIT)) {
       add(part, false);
       for (const half of part.split('-')) add(half, false);
     }
